@@ -32,6 +32,12 @@ class Argument(BaseModel):
     evidence_ids: list[str]
     severity: float = Field(ge=0, le=1)  # strength of the case, 0-1
 
+class JudgeAssessment(BaseModel):
+    decision: Literal["APPROVE", "REDUCE", "REJECT"]
+    reasoning: str
+    supporting_ids: list[str]
+    contradicting_ids: list[str]
+    confidence: float = Field(ge=0, le=1)
 
 class Verdict(BaseModel):
     decision: Literal["APPROVE", "REDUCE", "REJECT"]

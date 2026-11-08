@@ -11,7 +11,7 @@ import httpx
 from pydantic import ValidationError
 
 from . import rule_based as rb
-from .schemas import Argument, Evidence, Proposal, Verdict
+from .schemas import Argument, Evidence, JudgeAssessment, Proposal, Verdict
 
 SYSTEM = ("You are one role in an adversarial trade trial for an Indian equities PAPER-trading system. "
           "Use ONLY the numbered evidence supplied. Cite evidence IDs exactly as given (e.g. E3). Never invent prices, "
@@ -77,7 +77,8 @@ class RuleAgents:
     def strategist(self, symbol, ev, ctx): return rb.strategist(symbol, ev, ctx)
     def prosecutor(self, p, ev, ctx): return rb.prosecutor(p, ev, ctx)
     def defender(self, p, ev, ctx): return rb.defender(p, ev, ctx)
-    def judge(self, p, pro, dfn): return rb.judge(p, pro, dfn)
+    def judge(self, p, pro, dfn, ev=None):
+        return rb.judge(p, pro, dfn)
 
 
 class LLMAgents(RuleAgents):
@@ -132,26 +133,115 @@ class LLMAgents(RuleAgents):
     def prosecutor(self, p, ev, ctx): return self._arg("PROSECUTOR", p, ev, lambda: rb.prosecutor(p, ev, ctx))
     def defender(self, p, ev, ctx): return self._arg("DEFENDER", p, ev, lambda: rb.defender(p, ev, ctx))
 
-    def judge(self, p, pro, dfn):
+    def judge(self, p, pro, dfn, ev=None):
         base = rb.judge(p, pro, dfn)
-        known = getattr(self, "known", None) or {i for a in (pro, dfn) for i in a.evidence_ids}
+
+        # Compatibility for direct callers that do not provide original evidence.
+        if ev is None:
+            self.backends["judge"] = "rules (original evidence not supplied)"
+            return base
+
+        known = {e.id for e in ev}
+
+        def validate_assessment(raw):
+            d = raw.get("decision")
+            if d not in ("APPROVE", "REDUCE", "REJECT"):
+                raise LLMError("bad preliminary decision")
+
+            sup = _ids(raw.get("supporting_ids"), ev)
+            con = [str(i) for i in raw.get("contradicting_ids", [])]
+
+            if any(i not in known for i in con):
+                raise LLMError("preliminary assessment cited unknown evidence")
+
+            reasoning = str(raw.get("reasoning", "")).strip()[:500]
+            if not reasoning:
+                raise LLMError("missing preliminary reasoning")
+
+            return JudgeAssessment(
+                decision=d,
+                reasoning=reasoning,
+                supporting_ids=sup,
+                contradicting_ids=con,
+                confidence=float(raw.get("confidence", 0.5)),
+            )
 
         def go():
-            out = self.client.generate_json(SYSTEM, "ROLE: JUDGE. Weigh both cases and rule APPROVE (full size), REDUCE (half) or REJECT.\n"
-                f"PROPOSAL: {p.model_dump_json()}\nPROSECUTOR: {pro.model_dump_json()}\nDEFENDER: {dfn.model_dump_json()}\n"
-                'JSON: {"decision":"APPROVE"|"REDUCE"|"REJECT","reasoning":str,"supporting_ids":[str],"contradicting_ids":[str],"i_am_wrong_if":str}')
-            d = out.get("decision")
-            if d not in ("APPROVE", "REDUCE", "REJECT"):
-                raise LLMError("bad decision")
-            sup, con = [str(i) for i in out.get("supporting_ids", [])], [str(i) for i in out.get("contradicting_ids", [])]
-            if not sup or any(i not in known for i in sup + con):
-                raise LLMError("judge cited unknown evidence")
-            mult = {"APPROVE": Decimal(1), "REDUCE": Decimal("0.5"), "REJECT": Decimal(0)}[d]  # code sets size, not the LLM
-            return Verdict(decision=d, multiplier=mult, reasoning=str(out.get("reasoning", ""))[:500] or base.reasoning,
-                           supporting_ids=sup, contradicting_ids=con,
-                           i_am_wrong_if=str(out.get("i_am_wrong_if", "")).strip()[:300] or base.i_am_wrong_if)
-        return self._try("judge", go, lambda: (self.backends.update(judge="fallback") or base))
+            # Stage 1: the Judge sees original evidence and proposal only.
+            preliminary_raw = self.client.generate_json(
+                SYSTEM,
+                "ROLE: BLIND JUDGE — PRELIMINARY ASSESSMENT. "
+                "Assess the proposal using ONLY the original evidence. "
+                "You have NOT received either side's arguments. "
+                "Do not assume missing evidence is positive. "
+                "Cite only evidence that directly supports or contradicts the proposal. "
+                "Return a provisional decision, concise reasoning and confidence from 0 to 1.\\n"
+                f"PROPOSAL: {p.model_dump_json()}\\n"
+                f"ORIGINAL EVIDENCE:\\n{_evtext(ev)}\\n"
+                'JSON: {"decision":"APPROVE"|"REDUCE"|"REJECT",'
+                '"reasoning":str,"supporting_ids":[str],'
+                '"contradicting_ids":[str],"confidence":number}'
+            )
+            assessment = validate_assessment(preliminary_raw)
 
+            # Stage 2: only now does the Judge receive the adversarial arguments.
+            final_raw = self.client.generate_json(
+                SYSTEM,
+                "ROLE: JUDGE — FINAL DELIBERATION. "
+                "Review the original evidence, preliminary assessment, prosecutor "
+                "and defender arguments. Independently check whether each argument "
+                "is supported by the evidence. Do not reward an argument merely "
+                "because it sounds persuasive. Explain whether and why your initial "
+                "assessment changes. "
+                "APPROVE means full size, REDUCE means half size, REJECT means no trade.\\n"
+                f"PROPOSAL: {p.model_dump_json()}\\n"
+                f"ORIGINAL EVIDENCE:\\n{_evtext(ev)}\\n"
+                f"PRELIMINARY ASSESSMENT: {assessment.model_dump_json()}\\n"
+                f"PROSECUTOR: {pro.model_dump_json()}\\n"
+                f"DEFENDER: {dfn.model_dump_json()}\\n"
+                'JSON: {"decision":"APPROVE"|"REDUCE"|"REJECT",'
+                '"reasoning":str,"supporting_ids":[str],'
+                '"contradicting_ids":[str],"i_am_wrong_if":str}'
+            )
+
+            d = final_raw.get("decision")
+            if d not in ("APPROVE", "REDUCE", "REJECT"):
+                raise LLMError("bad final decision")
+
+            sup = _ids(final_raw.get("supporting_ids"), ev)
+            con = [str(i) for i in final_raw.get("contradicting_ids", [])]
+
+            if any(i not in known for i in con):
+                raise LLMError("final judge cited unknown evidence")
+
+            reasoning = str(final_raw.get("reasoning", "")).strip()[:500]
+            if not reasoning:
+                raise LLMError("missing final reasoning")
+
+            wrong_if = str(final_raw.get("i_am_wrong_if", "")).strip()[:300]
+            if not wrong_if:
+                raise LLMError("missing invalidation condition")
+
+            multiplier = {
+                "APPROVE": Decimal(1),
+                "REDUCE": Decimal("0.5"),
+                "REJECT": Decimal(0),
+            }[d]
+
+            return Verdict(
+                decision=d,
+                multiplier=multiplier,
+                reasoning=reasoning,
+                supporting_ids=sup,
+                contradicting_ids=con,
+                i_am_wrong_if=wrong_if,
+            )
+
+        return self._try(
+            "judge",
+            go,
+            lambda: (self.backends.update(judge="fallback") or base),
+        )
 
 def get_agents() -> RuleAgents:
     """Gemini when LLM_PROVIDER=gemini and a key is present; otherwise rules. Never silent: backends are journaled."""

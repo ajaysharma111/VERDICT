@@ -35,25 +35,55 @@ def buy_case():
 
 def test_llm_agents_used_when_valid_and_key_not_in_body():
     s, df, ev, ctx, p = buy_case()
-    seen = {}
+    seen = {"prompts": []}
+    valid_id = ev[0].id
+    other_id = ev[1].id
 
     def h(req):
         seen["key_in_header"] = req.headers.get("x-goog-api-key") == "k"
         seen["key_in_url"] = "k" == req.url.params.get("key")
         body = json.loads(req.content)
-        text = body["contents"][0]["parts"][0]["text"]
-        if "ROLE: STRATEGIST" in text: return reply({"action": "BUY", "rationale": "ok", "evidence_ids": ["E1", "E2"]})
-        if "ROLE: PROSECUTOR" in text: return reply({"points": ["late entry"], "evidence_ids": ["E3"], "severity": 0.2})
-        if "ROLE: DEFENDER" in text: return reply({"points": ["trend"], "evidence_ids": ["E2"], "severity": 0.9})
-        return reply({"decision": "APPROVE", "reasoning": "defence stronger", "supporting_ids": ["E2", "E5"],
-                      "contradicting_ids": ["E3"], "i_am_wrong_if": "stop breaks"})
+        prompt = body["contents"][0]["parts"][0]["text"]
+        seen["prompts"].append(prompt)
+
+        if "ROLE: STRATEGIST" in prompt:
+            return reply({"action": "BUY", "rationale": "ok", "evidence_ids": [valid_id]})
+        if "ROLE: PROSECUTOR" in prompt:
+            return reply({"points": ["late entry"], "evidence_ids": [other_id], "severity": 0.2})
+        if "ROLE: DEFENDER" in prompt:
+            return reply({"points": ["trend"], "evidence_ids": [valid_id], "severity": 0.9})
+        if "BLIND JUDGE" in prompt:
+            return reply({
+                "decision": "REDUCE",
+                "reasoning": "Preliminary assessment",
+                "supporting_ids": [valid_id],
+                "contradicting_ids": [other_id],
+                "confidence": 0.7,
+            })
+        if "FINAL DELIBERATION" in prompt:
+            return reply({
+                "decision": "APPROVE",
+                "reasoning": "Final assessment after reviewing both arguments",
+                "supporting_ids": [valid_id],
+                "contradicting_ids": [other_id],
+                "i_am_wrong_if": "stop breaks",
+            })
+        raise AssertionError("Unexpected Gemini prompt")
+
     a = LLMAgents(gemini(h))
     prop = a.strategist(s, ev, ctx)
     pro, dfn = a.prosecutor(prop, ev, ctx), a.defender(prop, ev, ctx)
-    v = a.judge(prop, pro, dfn)
-    assert set(a.backends.values()) == {"gemini"} and v.decision == "APPROVE" and v.multiplier == 1
+    v = a.judge(prop, pro, dfn, ev)
+
+    assert set(a.backends.values()) == {"gemini"}
+    assert v.decision == "APPROVE" and v.multiplier == 1
     assert seen["key_in_header"] and not seen["key_in_url"]
 
+    blind_prompt = next(x for x in seen["prompts"] if "BLIND JUDGE" in x)
+    final_prompt = next(x for x in seen["prompts"] if "FINAL DELIBERATION" in x)
+    assert "PROSECUTOR:" not in blind_prompt and "DEFENDER:" not in blind_prompt
+    assert "PROSECUTOR:" in final_prompt and "DEFENDER:" in final_prompt
+    assert "PRELIMINARY ASSESSMENT:" in final_prompt
 
 def test_bad_llm_output_falls_back_and_is_recorded():
     s, df, ev, ctx, p = buy_case()
@@ -61,7 +91,7 @@ def test_bad_llm_output_falls_back_and_is_recorded():
     pro = a.prosecutor(p, ev, ctx)
     assert a.backends["prosecutor"].startswith("fallback") and set(pro.evidence_ids) <= {e.id for e in ev}
     b = LLMAgents(gemini(lambda r: httpx.Response(500)))
-    assert b.judge(p, pro, pro).decision in ("APPROVE", "REDUCE", "REJECT") and b.backends["judge"].startswith("fallback")
+    assert b.judge(p, pro, pro, ev).decision in ("APPROVE", "REDUCE", "REJECT") and b.backends["judge"].startswith("fallback")
     c = LLMAgents(gemini(lambda r: httpx.Response(200, text="not json")))
     c.defender(p, ev, ctx)
     assert c.backends["defender"].startswith("fallback")
@@ -69,19 +99,39 @@ def test_bad_llm_output_falls_back_and_is_recorded():
 
 def test_llm_cannot_set_size_and_strategist_cannot_override_gate():
     s, df, ev, ctx, p = buy_case()
-    a = LLMAgents(gemini(lambda r: reply({"decision": "APPROVE", "reasoning": "r", "supporting_ids": ["E1"],
-                                          "contradicting_ids": [], "i_am_wrong_if": "x", "multiplier": 50})))
-    pro = Argument(role="PROSECUTOR", points=["a"], evidence_ids=["E1"], severity=0.1)
-    assert a.judge(p, pro, pro).multiplier == 1  # multiplier comes from code, never the LLM
-    # gate failed -> LLM is not even consulted
+    valid_id = ev[0].id
+
+    judge_response = {
+        "decision": "APPROVE",
+        "reasoning": "r",
+        "supporting_ids": [valid_id],
+        "contradicting_ids": [],
+        "i_am_wrong_if": "x",
+        "confidence": 0.9,
+        "multiplier": 50,
+    }
+
+    a = LLMAgents(gemini(lambda r: reply(judge_response)))
+    pro = Argument(
+        role="PROSECUTOR",
+        points=["a"],
+        evidence_ids=[valid_id],
+        severity=0.1,
+    )
+
+    # Position size is calculated by Python, not Gemini.
+    assert a.judge(p, pro, pro, ev).multiplier == 1
+
+    # Gate failed -> LLM is not even consulted.
     for sym in WATCHLIST:
-        df2 = demo_candles(sym); ev2, ctx2 = rb.build_evidence(sym, df2, "DEMO")
+        df2 = demo_candles(sym)
+        ev2, ctx2 = rb.build_evidence(sym, df2, "DEMO")
         if rb.strategist(sym, ev2, ctx2).action == "NO_TRADE":
             calls = []
             b = LLMAgents(gemini(lambda r: calls.append(1) or reply({})))
-            assert b.strategist(sym, ev2, ctx2).action == "NO_TRADE" and not calls
+            assert b.strategist(sym, ev2, ctx2).action == "NO_TRADE"
+            assert not calls
             return
-
 
 def test_get_agents_selection(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)

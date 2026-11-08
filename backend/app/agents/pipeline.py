@@ -64,7 +64,7 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
     prop = agents.strategist(symbol, ev, ctx)
     pro = agents.prosecutor(prop, ev, ctx)
     dfn = agents.defender(prop, ev, ctx)
-    verdict = agents.judge(prop, pro, dfn) if prop.action == "BUY" else None
+    verdict = agents.judge(prop, pro, dfn, ev) if prop.action == "BUY" else None
     known = {e.id for e in ev}
     lists = [prop.evidence_ids, pro.evidence_ids, dfn.evidence_ids] + ([verdict.supporting_ids, verdict.contradicting_ids] if verdict else [])
     evidence_ok = all(i in known for l in lists for i in l)
