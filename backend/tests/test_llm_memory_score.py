@@ -4,6 +4,7 @@ from decimal import Decimal as D
 
 import httpx
 
+from app.database.models import JournalEntry
 from app.agents import rule_based as rb
 from app.agents.llm import GeminiClient, LLMAgents, RuleAgents, get_agents
 from app.agents.pipeline import run_trial, score_process, symbol_memory
@@ -172,6 +173,19 @@ def test_pipeline_journals_agent_backends_and_trial_id():
     assert "agent_backends" in transcript
     assert "process_breakdown" in transcript
     assert transcript["preliminary_assessment"] == agents.preliminary_assessment
+    with b.Session() as session:
+        entry = session.get(JournalEntry, r["trial_id"])
+
+    assert entry is not None
+    assert entry.id == r["trial_id"]
+    assert entry.symbol == s
+    assert entry.outcome == r["outcome"]
+    assert entry.summary == r["summary"]
+    assert entry.process_score == r["process_score"]
+
+    stored_transcript = json.loads(entry.transcript_json)
+    assert stored_transcript == transcript
+    assert stored_transcript["preliminary_assessment"] == agents.preliminary_assessment
 
 
 def test_memory_reads_own_track_record_and_reaches_prosecutor():
@@ -202,3 +216,89 @@ def test_process_score_can_fail():
     heavy = Argument(role="PROSECUTOR", points=["x"], evidence_ids=["E1"], severity=0.9)
     sc, parts3 = score_process(ev, p, heavy, dfn, weak, "EXECUTED", int(D(1000) / (p.entry - p.stop)), D(100000), D("0.01"), O, ctx)
     assert parts3["decision_explanation"] <= 5 and parts3["strategy_consistency"] < 20 and sc < 80
+
+
+def test_blind_judge_rejects_unknown_preliminary_supporting_evidence():
+    s, df, ev, ctx, p = buy_case()
+
+    def handler(req):
+        return reply({
+            "decision": "APPROVE",
+            "reasoning": "Preliminary assessment",
+            "supporting_ids": ["E999"],
+            "contradicting_ids": [],
+            "confidence": 0.8,
+        })
+
+    a = LLMAgents(gemini(handler))
+    pro = rb.prosecutor(p, ev, ctx)
+    dfn = rb.defender(p, ev, ctx)
+
+    result = a.judge(p, pro, dfn, ev)
+
+    assert result.decision in ("APPROVE", "REDUCE", "REJECT")
+    assert a.backends["judge"] == "fallback"
+    assert a.preliminary_assessment is None
+
+
+def test_blind_judge_rejects_unknown_preliminary_contradicting_evidence():
+    s, df, ev, ctx, p = buy_case()
+    valid_id = ev[0].id
+
+    def handler(req):
+        return reply({
+            "decision": "REDUCE",
+            "reasoning": "Preliminary assessment",
+            "supporting_ids": [valid_id],
+            "contradicting_ids": ["E999"],
+            "confidence": 0.7,
+        })
+
+    a = LLMAgents(gemini(handler))
+    pro = rb.prosecutor(p, ev, ctx)
+    dfn = rb.defender(p, ev, ctx)
+
+    result = a.judge(p, pro, dfn, ev)
+
+    assert result.decision in ("APPROVE", "REDUCE", "REJECT")
+    assert a.backends["judge"] == "fallback"
+    assert a.preliminary_assessment is None
+
+
+def test_final_judge_failure_preserves_valid_preliminary_assessment():
+    s, df, ev, ctx, p = buy_case()
+    valid_id = ev[0].id
+    calls = {"count": 0}
+
+    def handler(req):
+        calls["count"] += 1
+
+        if calls["count"] == 1:
+            return reply({
+                "decision": "REDUCE",
+                "reasoning": "Valid preliminary assessment",
+                "supporting_ids": [valid_id],
+                "contradicting_ids": [],
+                "confidence": 0.7,
+            })
+
+        return reply({
+            "decision": "APPROVE",
+            "reasoning": "Invalid final assessment",
+            "supporting_ids": ["E999"],
+            "contradicting_ids": [],
+            "i_am_wrong_if": "Stop breaks",
+        })
+
+    a = LLMAgents(gemini(handler))
+    pro = rb.prosecutor(p, ev, ctx)
+    dfn = rb.defender(p, ev, ctx)
+
+    result = a.judge(p, pro, dfn, ev)
+
+    assert calls["count"] == 2
+    assert result.decision in ("APPROVE", "REDUCE", "REJECT")
+    assert a.backends["judge"] == "fallback"
+    assert a.preliminary_assessment is not None
+    assert a.preliminary_assessment["decision"] == "REDUCE"
+    assert a.preliminary_assessment["supporting_ids"] == [valid_id]

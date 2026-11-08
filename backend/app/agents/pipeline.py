@@ -56,40 +56,88 @@ def score_process(ev, prop, pro, dfn, verdict, outcome, qty, equity, risk_limit,
     return sum(parts.values()), parts
 
 
+
 def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, risk: RiskEngine,
               prices: dict[str, Decimal], now: datetime, data_fresh: bool = True,
               simulation_mode: bool = False, news=None, agents=None) -> dict:
     agents = agents or RuleAgents()
     ev, ctx = rb.build_evidence(symbol, df, source, news, symbol_memory(broker, symbol))
+
     prop = agents.strategist(symbol, ev, ctx)
     pro = agents.prosecutor(prop, ev, ctx)
     dfn = agents.defender(prop, ev, ctx)
+
     preliminary_assessment = None
     verdict = agents.judge(prop, pro, dfn, ev) if prop.action == "BUY" else None
+
     if verdict is not None:
         preliminary_assessment = getattr(agents, "preliminary_assessment", None)
+
+    # Validate every agent's evidence citations, including both Judge stages.
     known = {e.id for e in ev}
-    lists = [prop.evidence_ids, pro.evidence_ids, dfn.evidence_ids] + ([verdict.supporting_ids, verdict.contradicting_ids] if verdict else [])
-    evidence_ok = all(i in known for l in lists for i in l)
+    lists = [prop.evidence_ids, pro.evidence_ids, dfn.evidence_ids]
+
+    if preliminary_assessment:
+        lists.extend([
+            preliminary_assessment.get("supporting_ids", []),
+            preliminary_assessment.get("contradicting_ids", []),
+        ])
+
+    if verdict is not None:
+        lists.extend([
+            verdict.supporting_ids,
+            verdict.contradicting_ids,
+        ])
+
+    evidence_ok = all(
+        evidence_id in known
+        for evidence_ids in lists
+        for evidence_id in evidence_ids
+    )
 
     outcome, risk_reasons, order, qty = "NO_TRADE", [], None, 0
+
     if not evidence_ok:
         risk_reasons = ["Agents cited evidence IDs that do not exist; trial voided"]
+
     elif prop.action == "BUY" and verdict.decision == "REJECT":
         outcome = "REJECTED_BY_JUDGE"
+
     elif prop.action == "BUY":
         acct = broker.account()
-        state = AccountState(equity=broker.equity(prices), cash=acct.cash, start_of_day_equity=acct.start_of_day_equity,
-                             positions=broker.position_values(prices), halted=acct.halted, halt_reason=acct.halt_reason,
-                             last_checkin=acct.last_checkin, data_fresh=data_fresh)
-        dec = risk.check_entry(TradeProposal(symbol, prop.entry, prop.stop, prop.target, verdict.multiplier),
-                               state, now, simulation_mode)
+        state = AccountState(
+            equity=broker.equity(prices),
+            cash=acct.cash,
+            start_of_day_equity=acct.start_of_day_equity,
+            positions=broker.position_values(prices),
+            halted=acct.halted,
+            halt_reason=acct.halt_reason,
+            last_checkin=acct.last_checkin,
+            data_fresh=data_fresh,
+        )
+
+        dec = risk.check_entry(
+            TradeProposal(symbol, prop.entry, prop.stop, prop.target, verdict.multiplier),
+            state,
+            now,
+            simulation_mode,
+        )
         risk_reasons = dec.reasons
+
         if dec.approved:
-            order = broker.submit(symbol, "BUY", dec.quantity, prop.entry, now, stop=prop.stop, target=prop.target,
-                                  invalidation=verdict.i_am_wrong_if)
+            order = broker.submit(
+                symbol,
+                "BUY",
+                dec.quantity,
+                prop.entry,
+                now,
+                stop=prop.stop,
+                target=prop.target,
+                invalidation=verdict.i_am_wrong_if,
+            )
             qty = dec.quantity
             outcome = "EXECUTED" if order.status == "FILLED" else "BLOCKED_BY_RISK"
+
             if order.status != "FILLED":
                 risk_reasons.append(order.reason)
         else:
@@ -97,24 +145,57 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
             broker.log("ENTRY_BLOCKED", symbol, "; ".join(dec.reasons), now)
 
     summary = _plain_language(symbol, prop, pro, verdict, outcome, qty, risk_reasons, order)
+
     equity = broker.equity(prices)
-    score, parts = score_process(ev, prop, pro, dfn, verdict, outcome, qty, equity, risk.limits.risk_per_trade, order, ctx) \
-        if evidence_ok else (0, {"evidence_quality": 0})
-    transcript = {"source": source, "agent_backends": dict(agents.backends), "memory": ctx.get("memory"),
-                  "evidence": [e.model_dump() for e in ev], "strategist": prop.model_dump(mode="json"),
-                  "prosecutor": pro.model_dump(), "defender": dfn.model_dump(),
-                  "judge": verdict.model_dump(mode="json") if verdict else None,
-                  "preliminary_assessment": preliminary_assessment,
-                  "risk": {"approved": outcome == "EXECUTED", "quantity": qty, "reasons": risk_reasons},
-                  "process_breakdown": parts, "order_id": order.id if order else None}
+    score, parts = (
+        score_process(
+            ev, prop, pro, dfn, verdict, outcome, qty, equity,
+            risk.limits.risk_per_trade, order, ctx
+        )
+        if evidence_ok
+        else (0, {"evidence_quality": 0})
+    )
+
+    transcript = {
+        "source": source,
+        "agent_backends": dict(agents.backends),
+        "memory": ctx.get("memory"),
+        "evidence": [e.model_dump() for e in ev],
+        "strategist": prop.model_dump(mode="json"),
+        "prosecutor": pro.model_dump(),
+        "defender": dfn.model_dump(),
+        "judge": verdict.model_dump(mode="json") if verdict else None,
+        "preliminary_assessment": preliminary_assessment,
+        "risk": {
+            "approved": outcome == "EXECUTED",
+            "quantity": qty,
+            "reasons": risk_reasons,
+        },
+        "process_breakdown": parts,
+        "order_id": order.id if order else None,
+    }
+
     with broker.Session.begin() as s:
-        j = JournalEntry(at=now, symbol=symbol, outcome=outcome, summary=summary,
-                         transcript_json=json.dumps(transcript), process_score=score)
+        j = JournalEntry(
+            at=now,
+            symbol=symbol,
+            outcome=outcome,
+            summary=summary,
+            transcript_json=json.dumps(transcript),
+            process_score=score,
+        )
         s.add(j)
         s.flush()
         trial_id = j.id
-    return {"trial_id": trial_id, "symbol": symbol, "outcome": outcome, "summary": summary,
-            "process_score": score, "transcript": transcript}
+
+    return {
+        "trial_id": trial_id,
+        "symbol": symbol,
+        "outcome": outcome,
+        "summary": summary,
+        "process_score": score,
+        "transcript": transcript,
+    }
 
 
 def _plain_language(symbol, prop, pro, verdict, outcome, qty, reasons, order) -> str:
