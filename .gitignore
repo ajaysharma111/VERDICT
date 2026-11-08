@@ -13,3 +13,13 @@ backend/.venv/
 
 # macOS
 .DS_Store
+
+# Environment and secrets
+.env.*
+!.env.example
+*.pem
+*.key
+
+# SQLite databases
+*.sqlite
+*.sqlite3
