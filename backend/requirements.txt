@@ -1,0 +1,12 @@
+fastapi==0.162.2
+httpx==0.28.1
+numpy==2.5.3
+pandas==3.0.5
+pydantic==2.13.5
+PyOTP==2.10.0
+pytest==9.1.1
+python-dotenv==1.2.3
+SQLAlchemy==2.1.8
+uvicorn==0.54.0
+websockets==15.0.1
+smartapi-python==1.5.5

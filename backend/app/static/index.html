@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VERDICT — The Trading Agent on Trial</title>
+<style>
+:root{--bg:#0b1220;--panel:#141b2b;--panel2:#1a2336;--line:#26324a;--text:#e6e9f0;--mute:#8b96ab;--gold:#c9a24b;--green:#3ecf8e;--red:#ef5b5b;--teal:#4fb3bf}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--line);background:#0e1627;position:sticky;top:0;z-index:5}
+.brand b{letter-spacing:.28em;font-size:20px;color:var(--gold)}.brand small{display:block;color:var(--mute);letter-spacing:.22em;font-size:10px}
+.badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.badge{border:1px solid var(--line);padding:3px 10px;border-radius:99px;font-size:12px;color:var(--mute)}
+.badge.paper{color:var(--gold);border-color:var(--gold)}.badge.ok{color:var(--green);border-color:var(--green)}.badge.bad{color:var(--red);border-color:var(--red)}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:7px 14px}
+button:hover{border-color:var(--gold)}button:disabled{opacity:.5;cursor:wait}
+.stop{background:var(--red);border-color:var(--red);color:#fff;font-weight:700;letter-spacing:.06em}.stop:hover{filter:brightness(1.1);border-color:#fff}
+.primary{background:var(--gold);color:#1a1405;border-color:var(--gold);font-weight:600}
+main{padding:20px 24px;max-width:1400px;margin:auto;display:grid;gap:18px}
+.banner{padding:10px 14px;border-radius:8px;border:1px solid var(--red);background:#2a1519;color:#ffb4b4;display:none}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.kpi .l{color:var(--mute);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.kpi .v{font-size:22px;font-weight:600;margin-top:2px}
+.pos{color:var(--green)}.neg{color:var(--red)}
+h2{margin:0 0 10px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);font-weight:600}
+.grid2{display:grid;grid-template-columns:3fr 2fr;gap:18px}@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+.court{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:12px}
+.agent{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px;opacity:.35;transform:translateY(6px);transition:all .45s}
+.agent.on{opacity:1;transform:none}.agent.on.prosecutor{border-color:#7a3a3a}.agent.on.defender{border-color:#2f6b55}.agent.on.judge{border-color:var(--gold)}
+.agent .role{font-weight:700;letter-spacing:.1em;font-size:12px;margin-bottom:6px}
+.agent ul{margin:0;padding-left:16px;color:#cfd5e2}.agent li{margin-bottom:3px}
+.chip{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:2px 3px 0 0;color:var(--teal);cursor:pointer}
+.chip:hover{background:#0d2a30}
+.verdict{font-size:20px;font-weight:800}.APPROVE{color:var(--green)}.REDUCE{color:var(--gold)}.REJECT{color:var(--red)}
+.strip{margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel2)}
+.thinking{color:var(--mute)}.dots::after{content:"";animation:d 1.2s steps(4) infinite}@keyframes d{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--mute);font-weight:500}
+.j{padding:9px 0;border-bottom:1px solid var(--line);cursor:pointer}.j:hover{background:#18213a}.j small{color:var(--mute)}
+.tag{font-size:11px;border-radius:4px;padding:1px 6px;border:1px solid var(--line)}
+.legend span{margin-right:14px;font-size:12px}.legend i{display:inline-block;width:10px;height:3px;margin-right:5px;vertical-align:middle}
+.note{color:var(--mute);font-size:12px}
+.ev{font-size:12px;color:#c3cad8}.ev.hl{background:#2b2410}
+select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font:inherit}
+.log{max-height:230px;overflow:auto;font-size:12px;font-family:Consolas,monospace;color:#b7c0d3}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><b>VERDICT</b><small>THE TRADING AGENT ON TRIAL</small></div>
+  <div class="badges">
+    <span class="badge paper">PAPER ONLY · VIRTUAL ₹</span>
+    <span class="badge" id="bData">data: …</span>
+    <span class="badge" id="bMkt">market: …</span>
+    <span class="badge" id="bHalt">…</span>
+    <button id="btnAngel" style="display:none" title="Authenticate the configured Angel One market-data session">Connect Angel One</button>
+    <button id="btnCheck" title="Dead-man switch: entries stop if no check-in for 24h">I'm here (check-in)</button>
+    <button id="btnResume" style="display:none">Resume</button>
+    <button id="btnStop" class="stop">STOP TRADING</button>
+  </div>
+</header>
+<main>
+  <div class="banner" id="banner"></div>
+  <section class="kpis" id="kpis"></section>
+
+  <section class="card">
+    <h2>Market tick stream</h2>
+    <div class="note" id="streamStatus">Connecting to local market stream…</div>
+    <table id="tickTable"><tr><th>Symbol</th><th>Last price</th><th>Source</th><th>Updated</th></tr><tr><td colspan="4" class="note">Waiting for ticks…</td></tr></table>
+    <div class="note" style="margin-top:6px">DEMO ticks are synthetic. LIVE ticks require an authenticated Angel One session and configured instrument tokens. This feed is data-only; all orders remain paper trades.</div>
+  </section>
+
+  <section class="card">
+    <h2>Live trial</h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+      <select id="sym"></select>
+      <button class="primary" id="btnTrial">Start trial</button>
+      <button id="btnAll">Run whole watchlist</button>
+      <span class="note" id="trialNote"></span>
+    </div>
+    <div class="court" id="court">
+      <div class="agent strategist" id="a-s"><div class="role">⚖ STRATEGIST</div><div class="body note">Proposes a trade</div></div>
+      <div class="agent prosecutor" id="a-p"><div class="role">PROSECUTOR</div><div class="body note">Argues against</div></div>
+      <div class="agent defender" id="a-d"><div class="role">DEFENDER</div><div class="body note">Argues for</div></div>
+      <div class="agent judge" id="a-j"><div class="role">JUDGE</div><div class="body note">Approves, shrinks or rejects</div></div>
+    </div>
+    <div class="strip" id="outcome" style="display:none"></div>
+    <details style="margin-top:10px" id="evWrap" open><summary class="note">Evidence report (click an ID chip to highlight)</summary><div id="ev"></div></details>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Strategy vs buy-and-hold</h2>
+      <div class="note">Historical out-of-sample backtest (walk-forward), not paper-portfolio performance. <span id="btSrc"></span></div>
+      <svg id="chart" viewBox="0 0 700 260" width="100%" style="margin-top:6px"></svg>
+      <div class="legend" id="legend"></div>
+      <table id="btTable" style="margin-top:8px"></table>
+    </section>
+    <section class="card">
+      <h2>Open positions</h2>
+      <table id="posTable"></table>
+      <h2 style="margin-top:16px">Risk &amp; safety log</h2>
+      <div class="log" id="riskLog"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>Trading journal</h2>
+    <div id="journal"></div>
+  </section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const inr=n=>"₹"+Number(n).toLocaleString("en-IN",{maximumFractionDigits:2});
+const cls=n=>Number(n)>=0?"pos":"neg";
+async function api(path,opt={}){opt.headers={"X-Verdict-Client":"1",...(opt.headers||{})};const r=await fetch(path,opt);if(!r.ok){let m=r.statusText;try{m=(await r.json()).detail||m}catch{}throw new Error(m)}return r.json()}
+const post=(p,b)=>api(p,{method:"POST",headers:{"Content-Type":"application/json"},body:b?JSON.stringify(b):undefined});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const latestTicks=new Map();
+let marketSocket=null, reconnectDelay=1000;
+function renderTicks(){
+  const rows=[...latestTicks.values()].sort((a,b)=>a.symbol.localeCompare(b.symbol));
+  $("#tickTable").innerHTML='<tr><th>Symbol</th><th>Last price</th><th>Source</th><th>Updated</th></tr>'+ (rows.length?rows.map(t=>`<tr><td><b>${esc(t.symbol)}</b></td><td>${inr(t.price)}</td><td>${esc(t.freshness||t.provider)}</td><td class="note">${new Date(t.at).toLocaleTimeString()}</td></tr>`).join(""):'<tr><td colspan="4" class="note">Waiting for ticks…</td></tr>');
+}
+function connectMarketStream(){
+  const scheme=location.protocol==='https:'?'wss':'ws';
+  marketSocket=new WebSocket(`${scheme}://${location.host}/ws/market`);
+  marketSocket.onopen=()=>{reconnectDelay=1000;$("#streamStatus").textContent="Connected · receiving market ticks";marketSocket.send("ready")};
+  marketSocket.onmessage=e=>{try{const t=JSON.parse(e.data);if(t.type==='tick'&&t.symbol){latestTicks.set(t.symbol,t);renderTicks();$("#streamStatus").textContent=`Connected · ${t.provider} · last tick ${new Date(t.at).toLocaleTimeString()}`}}catch{}};
+  marketSocket.onerror=()=>{$("#streamStatus").textContent="Market stream connection error"};
+  marketSocket.onclose=()=>{$("#streamStatus").textContent="Stream disconnected · reconnecting…";setTimeout(connectMarketStream,reconnectDelay);reconnectDelay=Math.min(reconnectDelay*2,15000)};
+}
+
+async function refresh(){
+  const [h,pf,j,lg]=await Promise.all([api("/api/health"),api("/api/portfolio"),api("/api/journal"),api("/api/risk/logs")]);
+  $("#bData").textContent="data: "+h.data_mode; $("#bData").className="badge "+(h.data_mode==="DEMO"?"":"ok");
+  $("#btnAngel").style.display=h.data_mode==="LIVE"?"":"none";
+  $("#bMkt").textContent="market: "+(h.market_open?"OPEN":"CLOSED"); $("#bMkt").className="badge "+(h.market_open?"ok":"");
+  $("#bHalt").textContent=pf.halted?"HALTED":"ACTIVE"; $("#bHalt").className="badge "+(pf.halted?"bad":"ok");
+  $("#btnResume").style.display=pf.halted?"":"none";
+  const b=$("#banner");
+  if(pf.halted){b.style.display="block";b.textContent="Trading halted: "+pf.halt_reason+". New entries are blocked until a human resumes."}
+  else if(h.data_mode==="DEMO"){b.style.display="block";b.style.borderColor="var(--gold)";b.style.background="#262012";b.style.color="#e8d29a";b.textContent="DEMO mode: synthetic candles and headlines. Nothing here is real market data."}
+  else b.style.display="none";
+  const pnl=Number(pf.realized_pnl)+Number(pf.unrealized_pnl);
+  $("#kpis").innerHTML=[["Equity",inr(pf.equity),""],["Cash",inr(pf.cash),""],["Realized P&L",inr(pf.realized_pnl),cls(pf.realized_pnl)],
+    ["Unrealized P&L",inr(pf.unrealized_pnl),cls(pf.unrealized_pnl)],["Open positions",pf.positions.length+" / 5",""]]
+    .map(([l,v,c])=>`<div class="card kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`).join("");
+  $("#posTable").innerHTML=pf.positions.length?`<tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Stop</th><th>Target</th><th>I am wrong if…</th></tr>`+
+    pf.positions.map(p=>`<tr><td>${esc(p.symbol)}</td><td>${p.quantity}</td><td>${inr(p.avg_price)}</td><td>${inr(p.stop)}</td><td>${inr(p.target)}</td><td class="note">${esc(p.i_am_wrong_if)}</td></tr>`).join(""):`<tr><td class="note">No open positions</td></tr>`;
+  $("#journal").innerHTML=j.length?j.map(e=>`<div class="j" data-id="${e.id}"><span class="tag">${esc(e.outcome)}</span> <b>${esc(e.symbol)}</b> <small>process score ${e.process_score}/100 · ${esc(e.at)}</small><div>${esc(e.summary)}</div><div class="jd"></div></div>`).join(""):`<div class="note">No trials yet. Start one above.</div>`;
+  $("#riskLog").innerHTML=lg.length?lg.map(l=>`<div>${esc(l.at.slice(0,19))} ${esc(l.event)} ${esc(l.symbol)} ${esc(l.detail)}</div>`).join(""):`<div class="note">No events</div>`;
+}
+$("#journal").addEventListener("click",async e=>{
+  const row=e.target.closest(".j");if(!row)return;const d=row.querySelector(".jd");
+  if(d.innerHTML){d.innerHTML="";return}
+  const j=await api("/api/journal/"+row.dataset.id);const t=JSON.parse(j.transcript);
+  d.innerHTML=`<pre class="note" style="white-space:pre-wrap">${esc(JSON.stringify({strategist:t.strategist,prosecutor:t.prosecutor,defender:t.defender,judge:t.judge,risk:t.risk},null,2))}</pre>`;
+});
+
+function evChips(ids){return (ids||[]).map(i=>`<span class="chip" data-ev="${esc(i)}">${esc(i)}</span>`).join("")}
+function setAgent(id,html){const a=$(id);a.querySelector(".body").innerHTML=html;a.classList.add("on")}
+function resetCourt(){document.querySelectorAll(".agent").forEach(a=>a.classList.remove("on"))}
+async function showTrial(r){
+  const t=r.transcript;resetCourt();$("#outcome").style.display="none";
+  const s=t.strategist;
+  setAgent("#a-s",s.action==="BUY"?`<b>${esc(s.strategy)}</b> long ${esc(s.symbol)}<br>Entry ${inr(s.entry)} · Stop ${inr(s.stop)} · Target ${inr(s.target)}<div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`:`<b>NO TRADE</b><div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`);
+  await sleep(500);
+  setAgent("#a-p",`<ul>${t.prosecutor.points.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>${evChips(t.prosecutor.evidence_ids)}<div class="note">strength ${t.prosecutor.severity.toFixed(2)}</div>`);
+  await sleep(500);
+  setAgent("#a-d",`<ul>${t.defender.points.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>${evChips(t.defender.evidence_ids)}<div class="note">strength ${t.defender.severity.toFixed(2)}</div>`);
+  await sleep(500);
+  if(t.judge){const j=t.judge;setAgent("#a-j",`<div class="verdict ${j.decision}">${j.decision}</div><div class="note">size × ${j.multiplier}</div><div>${esc(j.reasoning)}</div><div class="note">I am wrong if ${esc(j.i_am_wrong_if)}</div>`)}
+  else setAgent("#a-j",`<div class="verdict">NO CASE</div><div class="note">No proposal to judge.</div>`);
+  await sleep(400);
+  const o=$("#outcome");o.style.display="block";
+  const rk=t.risk;
+  o.innerHTML=`<b>Risk engine (plain code):</b> ${rk.approved?`approved ${rk.quantity} shares`:`no entry`} ${rk.reasons.length?"— "+esc(rk.reasons.join("; ")):""}<br><b>Outcome:</b> <span class="tag">${esc(r.outcome)}</span> · process score ${r.process_score}/100<div class="note" style="margin-top:4px">${esc(r.summary)}</div>
+    <div class="note" style="margin-top:6px">Agents: ${Object.entries(t.agent_backends||{}).map(([k,v])=>`${esc(k)}=<b>${esc(v)}</b>`).join(" · ")}</div>
+    <div class="note">Process score parts: ${Object.entries(t.process_breakdown||{}).map(([k,v])=>`${esc(k.replace(/_/g," "))} ${v}/20`).join(" · ")}</div>
+    ${t.memory?`<div class="note">Memory: ${t.memory.closed} closed trades in ${esc(r.symbol)} (${t.memory.targets} target / ${t.memory.stops} stop)</div>`:""}`;
+  $("#ev").innerHTML=t.evidence.map(e=>`<div class="ev" id="ev-${esc(e.id)}"><b>${esc(e.id)}</b> [${esc(e.source)}] ${esc(e.finding)}: ${esc(e.value)} — ${esc(e.interpretation)}</div>`).join("");
+}
+document.addEventListener("click",e=>{const c=e.target.closest(".chip");if(!c)return;
+  document.querySelectorAll(".ev.hl").forEach(x=>x.classList.remove("hl"));const t=document.getElementById("ev-"+c.dataset.ev);if(t){t.classList.add("hl");t.scrollIntoView({block:"nearest"})}});
+
+async function runTrial(sym){
+  $("#trialNote").innerHTML='<span class="thinking dots">Trial in progress</span>';
+  const r=await post("/api/trial/start",{symbol:sym});$("#trialNote").textContent="";await showTrial(r);await refresh();return r;
+}
+$("#btnTrial").onclick=async e=>{e.target.disabled=true;try{await runTrial($("#sym").value);await loadBacktest()}catch(x){$("#trialNote").textContent="Error: "+x.message}e.target.disabled=false};
+$("#btnAll").onclick=async e=>{e.target.disabled=true;try{for(const o of $("#sym").options){$("#sym").value=o.value;await runTrial(o.value)}await loadBacktest()}catch(x){$("#trialNote").textContent="Error: "+x.message}e.target.disabled=false};
+$("#sym").onchange=loadBacktest;
+$("#btnAngel").onclick=async e=>{e.target.disabled=true;e.target.textContent="Connecting…";try{const r=await post("/api/auth/angelone/connect");$("#streamStatus").textContent="Angel One session connected; waiting for first market tick";alert("Angel One authentication accepted. Stream status: "+r.stream)}catch(x){alert("Angel One connection failed: "+x.message)}finally{e.target.disabled=false;e.target.textContent="Connect Angel One"}};
+$("#btnCheck").onclick=async()=>{await post("/api/system/checkin");await refresh()};
+$("#btnResume").onclick=async()=>{await post("/api/system/resume");await refresh()};
+$("#btnStop").onclick=async()=>{
+  if(!confirm("STOP TRADING?\nThis halts the agent, cancels pending paper orders and closes all paper positions."))return;
+  const r=await post("/api/system/stop");await refresh();
+  if(!r.all_positions_flattened)alert("Halted, but some paper positions could not be closed (no price). The system stays halted.")};
+
+const COL={momentum:"#c9a24b",ma_crossover:"#4fb3bf",buy_and_hold:"#8b96ab"};
+async function loadBacktest(){
+  const sym=$("#sym").value;if(!sym)return;
+  const b=await post("/api/backtest/run?symbol="+encodeURIComponent(sym));
+  $("#btSrc").textContent="Data: "+b.data_source+" · cost/side "+b.assumptions.cost_per_side_bps+" bps · execution "+b.assumptions.execution;
+  const names=Object.keys(b.equity_curves),all=names.flatMap(n=>b.equity_curves[n]);
+  const lo=Math.min(...all),hi=Math.max(...all),W=700,H=260,P=34,n=b.dates.length;
+  const X=i=>P+i*(W-P-8)/(n-1),Y=v=>H-P-(v-lo)*(H-2*P)/((hi-lo)||1);
+  let g="";for(let k=0;k<=4;k++){const v=lo+(hi-lo)*k/4,y=Y(v);g+=`<line x1="${P}" x2="${W-8}" y1="${y}" y2="${y}" stroke="#26324a"/><text x="2" y="${y+4}" fill="#8b96ab" font-size="10">${(v/1000).toFixed(0)}k</text>`}
+  g+=`<text x="${P}" y="${H-10}" fill="#8b96ab" font-size="10">${esc(b.dates[0])}</text><text x="${W-90}" y="${H-10}" fill="#8b96ab" font-size="10">${esc(b.dates[n-1])}</text>`;
+  names.forEach(k=>{g+=`<polyline fill="none" stroke="${COL[k]}" stroke-width="${k==="buy_and_hold"?1.6:2.2}" ${k==="buy_and_hold"?'stroke-dasharray="5 4"':""} points="${b.equity_curves[k].map((v,i)=>X(i)+","+Y(v)).join(" ")}"/>`});
+  $("#chart").innerHTML=g;
+  $("#legend").innerHTML=names.map(k=>`<span><i style="background:${COL[k]}"></i>${k.replace(/_/g," ")}${b.passes_gate[k]?" ✓ passes gate":""}</span>`).join("");
+  const f=x=>(x*100).toFixed(1)+"%";
+  $("#btTable").innerHTML=`<tr><th>Strategy</th><th>Return</th><th>Max DD</th><th>Sharpe</th><th>Win rate</th><th>Trades</th></tr>`+
+    names.map(k=>{const m=b.metrics[k];return `<tr><td>${k.replace(/_/g," ")}</td><td class="${cls(m.total_return)}">${f(m.total_return)}</td><td class="neg">${f(m.max_drawdown)}</td><td>${m.sharpe.toFixed(2)}</td><td>${f(m.win_rate)}</td><td>${m.trades}</td></tr>`}).join("");
+}
+(async()=>{
+  try{
+    const w=await api("/api/watchlist");$("#sym").innerHTML=w.map(s=>`<option>${esc(s)}</option>`).join("");
+    await refresh();await loadBacktest();connectMarketStream();
+  }catch(x){$("#banner").style.display="block";$("#banner").textContent="Cannot reach backend: "+x.message}
+})();
+</script>
+</body>
+</html>
