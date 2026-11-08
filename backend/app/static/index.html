@@ -28,6 +28,7 @@ h2{margin:0 0 10px;font-size:13px;letter-spacing:.14em;text-transform:uppercase;
 .court{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-top:12px}
 .agent{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;min-height:150px;opacity:.35;transform:translateY(6px);transition:all .45s}
 .agent.on{opacity:1;transform:none}.agent.on.prosecutor{border-color:#7a3a3a}.agent.on.defender{border-color:#2f6b55}.agent.on.judge{border-color:var(--gold)}
+.agent.on.preliminary{border-color:#8c7540;border-style:dashed}
 .agent .role{font-weight:700;letter-spacing:.1em;font-size:12px;margin-bottom:6px}
 .agent ul{margin:0;padding-left:16px;color:#cfd5e2}.agent li{margin-bottom:3px}
 .chip{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:4px;padding:0 6px;margin:2px 3px 0 0;color:var(--teal);cursor:pointer}
@@ -80,6 +81,7 @@ select{background:var(--panel2);color:var(--text);border:1px solid var(--line);b
     </div>
     <div class="court" id="court">
       <div class="agent strategist" id="a-s"><div class="role">⚖ STRATEGIST</div><div class="body note">Proposes a trade</div></div>
+      <div class="agent judge preliminary" id="a-pj"><div class="role">BLIND JUDGE · STAGE 1</div><div class="body note">Initial assessment before arguments</div></div>
       <div class="agent prosecutor" id="a-p"><div class="role">PROSECUTOR</div><div class="body note">Argues against</div></div>
       <div class="agent defender" id="a-d"><div class="role">DEFENDER</div><div class="body note">Argues for</div></div>
       <div class="agent judge" id="a-j"><div class="role">JUDGE</div><div class="body note">Approves, shrinks or rejects</div></div>
@@ -153,33 +155,128 @@ async function refresh(){
   $("#riskLog").innerHTML=lg.length?lg.map(l=>`<div>${esc(l.at.slice(0,19))} ${esc(l.event)} ${esc(l.symbol)} ${esc(l.detail)}</div>`).join(""):`<div class="note">No events</div>`;
 }
 $("#journal").addEventListener("click",async e=>{
-  const row=e.target.closest(".j");if(!row)return;const d=row.querySelector(".jd");
+  const row=e.target.closest(".j");
+  if(!row)return;
+  const d=row.querySelector(".jd");
   if(d.innerHTML){d.innerHTML="";return}
-  const j=await api("/api/journal/"+row.dataset.id);const t=JSON.parse(j.transcript);
-  d.innerHTML=`<pre class="note" style="white-space:pre-wrap">${esc(JSON.stringify({strategist:t.strategist,prosecutor:t.prosecutor,defender:t.defender,judge:t.judge,risk:t.risk},null,2))}</pre>`;
+
+  const j=await api("/api/journal/"+row.dataset.id);
+  const t=JSON.parse(j.transcript);
+  const s=t.strategist||{};
+  const p=t.preliminary_assessment;
+  const pro=t.prosecutor||{};
+  const def=t.defender||{};
+  const judge=t.judge;
+  const risk=t.risk||{};
+
+  const section=(title,body)=>`<div class="j-section" style="margin-top:12px;padding:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px"><div class="role" style="margin-bottom:8px">${title}</div>${body}</div>`;
+  const refs=ids=>(ids||[]).map(id=>`<span class="tag">${esc(id)}</span>`).join(" ")||'<span class="note">None recorded</span>';
+  const points=items=>(items||[]).map(x=>`<li>${esc(x)}</li>`).join("")||'<li class="note">No arguments recorded</li>';
+
+  const proposal=s.action==="BUY"
+    ?`<b>${esc(s.strategy)}</b> · ${esc(s.symbol)}<div class="note">Entry ${inr(s.entry)} · Stop ${inr(s.stop)} · Target ${inr(s.target)}</div>`
+    :`<b>${esc(s.action||"NO TRADE")}</b> · ${esc(s.symbol||"")}`;
+
+  const preliminary=p
+    ?`<div class="verdict ${esc(p.decision)}">${esc(p.decision)}</div>
+      <div class="note">Blind assessment · Confidence ${Number.isFinite(Number(p.confidence))?(Number(p.confidence)*100).toFixed(0)+"%":"N/A"}</div>
+      <div>${esc(p.reasoning)}</div>
+      <div class="note" style="margin-top:8px">Supporting evidence: ${refs(p.supporting_ids)}</div>
+      <div class="note">Contradicting evidence: ${refs(p.contradicting_ids)}</div>`
+    :'<div class="note">No preliminary assessment recorded for this trial.</div>';
+
+  const argumentsHtml=`
+    <div><b>Prosecutor</b> · strength ${Number(pro.severity||0).toFixed(2)}<ul>${points(pro.points)}</ul><div class="note">Evidence: ${refs(pro.evidence_ids)}</div></div>
+    <div style="margin-top:10px"><b>Defender</b> · strength ${Number(def.severity||0).toFixed(2)}<ul>${points(def.points)}</ul><div class="note">Evidence: ${refs(def.evidence_ids)}</div></div>`;
+
+  const finalJudge=judge
+    ?`<div class="verdict ${esc(judge.decision)}">${esc(judge.decision)}</div>
+      <div class="note">Position multiplier × ${esc(judge.multiplier)}</div>
+      <div>${esc(judge.reasoning)}</div>
+      <div class="note" style="margin-top:8px">I am wrong if: ${esc(judge.i_am_wrong_if)}</div>
+      <div class="note">Supporting evidence: ${refs(judge.supporting_ids)}</div>
+      <div class="note">Contradicting evidence: ${refs(judge.contradicting_ids)}</div>`
+    :'<div class="note">No final Judge decision. No BUY proposal was submitted to the court.</div>';
+
+  const evolution=p&&judge
+    ?`<b>${esc(p.decision)} → ${esc(judge.decision)}</b><div class="note">${p.decision===judge.decision?"The final decision matches the preliminary assessment.":"The final decision differs from the preliminary assessment after the arguments."}</div>`
+    :'<div class="note">Decision comparison unavailable for this trial.</div>';
+
+  const riskHtml=`<b>${risk.approved?"APPROVED":"NOT APPROVED"}</b>
+    <div class="note">Quantity: ${esc(risk.quantity??0)}</div>
+    <div class="note">${(risk.reasons||[]).map(esc).join(" · ")||"No risk rejection reasons recorded."}</div>`;
+
+  d.innerHTML=
+    section("1 · TRADE PROPOSAL",`${proposal}<div class="note" style="margin-top:8px">${esc(s.rationale||"No rationale recorded.")}</div><div class="note">Evidence: ${refs(s.evidence_ids)}</div>`)+
+    section("2 · BLIND JUDGE · STAGE 1",preliminary)+
+    section("3 · ADVERSARIAL ARGUMENTS",argumentsHtml)+
+    section("4 · FINAL JUDGE · STAGE 2",finalJudge)+
+    section("5 · DECISION EVOLUTION",evolution)+
+    section("6 · RISK ENGINE",riskHtml);
 });
 
 function evChips(ids){return (ids||[]).map(i=>`<span class="chip" data-ev="${esc(i)}">${esc(i)}</span>`).join("")}
 function setAgent(id,html){const a=$(id);a.querySelector(".body").innerHTML=html;a.classList.add("on")}
 function resetCourt(){document.querySelectorAll(".agent").forEach(a=>a.classList.remove("on"))}
 async function showTrial(r){
-  const t=r.transcript;resetCourt();$("#outcome").style.display="none";
+  const t=r.transcript;
+  resetCourt();
+  $("#outcome").style.display="none";
+
   const s=t.strategist;
-  setAgent("#a-s",s.action==="BUY"?`<b>${esc(s.strategy)}</b> long ${esc(s.symbol)}<br>Entry ${inr(s.entry)} · Stop ${inr(s.stop)} · Target ${inr(s.target)}<div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`:`<b>NO TRADE</b><div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`);
+  setAgent("#a-s",s.action==="BUY"
+    ?`<b>${esc(s.strategy)}</b> long ${esc(s.symbol)}<br>Entry ${inr(s.entry)} · Stop ${inr(s.stop)} · Target ${inr(s.target)}<div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`
+    :`<b>NO TRADE</b><div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`);
+
   await sleep(500);
+
+  const p=t.preliminary_assessment;
+  if(p){
+    const confidence=Number(p.confidence);
+    setAgent("#a-pj",`
+      <div class="verdict ${esc(p.decision)}">${esc(p.decision)}</div>
+      <div class="note">Blind assessment · Confidence ${Number.isFinite(confidence)?(confidence*100).toFixed(0)+"%":"N/A"}</div>
+      <div>${esc(p.reasoning)}</div>
+      <div class="note">Supporting evidence</div>${evChips(p.supporting_ids)}
+      <div class="note">Contradicting evidence</div>${evChips(p.contradicting_ids)}
+    `);
+  }else{
+    setAgent("#a-pj",`<div class="note">No preliminary assessment recorded for this trial.</div>`);
+  }
+
+  await sleep(500);
+
   setAgent("#a-p",`<ul>${t.prosecutor.points.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>${evChips(t.prosecutor.evidence_ids)}<div class="note">strength ${t.prosecutor.severity.toFixed(2)}</div>`);
+
   await sleep(500);
+
   setAgent("#a-d",`<ul>${t.defender.points.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>${evChips(t.defender.evidence_ids)}<div class="note">strength ${t.defender.severity.toFixed(2)}</div>`);
+
   await sleep(500);
-  if(t.judge){const j=t.judge;setAgent("#a-j",`<div class="verdict ${j.decision}">${j.decision}</div><div class="note">size × ${j.multiplier}</div><div>${esc(j.reasoning)}</div><div class="note">I am wrong if ${esc(j.i_am_wrong_if)}</div>`)}
-  else setAgent("#a-j",`<div class="verdict">NO CASE</div><div class="note">No proposal to judge.</div>`);
+
+  if(t.judge){
+    const j=t.judge;
+    setAgent("#a-j",`<div class="verdict ${esc(j.decision)}">${esc(j.decision)}</div><div class="note">size × ${esc(j.multiplier)}</div><div>${esc(j.reasoning)}</div><div class="note">I am wrong if ${esc(j.i_am_wrong_if)}</div>`);
+  }else{
+    setAgent("#a-j",`<div class="verdict">NO CASE</div><div class="note">No proposal to judge.</div>`);
+  }
+
   await sleep(400);
-  const o=$("#outcome");o.style.display="block";
+
+  const o=$("#outcome");
+  o.style.display="block";
   const rk=t.risk;
+
+  const comparison=p&&t.judge
+    ?`<div class="note" style="margin-top:6px"><b>Judge evolution:</b> Preliminary ${esc(p.decision)} → Final ${esc(t.judge.decision)} · ${p.decision===t.judge.decision?"Decision unchanged":"Decision changed after adversarial arguments"}</div>`
+    :"";
+
   o.innerHTML=`<b>Risk engine (plain code):</b> ${rk.approved?`approved ${rk.quantity} shares`:`no entry`} ${rk.reasons.length?"— "+esc(rk.reasons.join("; ")):""}<br><b>Outcome:</b> <span class="tag">${esc(r.outcome)}</span> · process score ${r.process_score}/100<div class="note" style="margin-top:4px">${esc(r.summary)}</div>
+    ${comparison}
     <div class="note" style="margin-top:6px">Agents: ${Object.entries(t.agent_backends||{}).map(([k,v])=>`${esc(k)}=<b>${esc(v)}</b>`).join(" · ")}</div>
     <div class="note">Process score parts: ${Object.entries(t.process_breakdown||{}).map(([k,v])=>`${esc(k.replace(/_/g," "))} ${v}/20`).join(" · ")}</div>
     ${t.memory?`<div class="note">Memory: ${t.memory.closed} closed trades in ${esc(r.symbol)} (${t.memory.targets} target / ${t.memory.stops} stop)</div>`:""}`;
+
   $("#ev").innerHTML=t.evidence.map(e=>`<div class="ev" id="ev-${esc(e.id)}"><b>${esc(e.id)}</b> [${esc(e.source)}] ${esc(e.finding)}: ${esc(e.value)} — ${esc(e.interpretation)}</div>`).join("");
 }
 document.addEventListener("click",e=>{const c=e.target.closest(".chip");if(!c)return;
