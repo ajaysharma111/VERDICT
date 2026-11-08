@@ -64,7 +64,10 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
     prop = agents.strategist(symbol, ev, ctx)
     pro = agents.prosecutor(prop, ev, ctx)
     dfn = agents.defender(prop, ev, ctx)
+    preliminary_assessment = None
     verdict = agents.judge(prop, pro, dfn, ev) if prop.action == "BUY" else None
+    if verdict is not None:
+        preliminary_assessment = getattr(agents, "preliminary_assessment", None)
     known = {e.id for e in ev}
     lists = [prop.evidence_ids, pro.evidence_ids, dfn.evidence_ids] + ([verdict.supporting_ids, verdict.contradicting_ids] if verdict else [])
     evidence_ok = all(i in known for l in lists for i in l)
@@ -101,6 +104,7 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
                   "evidence": [e.model_dump() for e in ev], "strategist": prop.model_dump(mode="json"),
                   "prosecutor": pro.model_dump(), "defender": dfn.model_dump(),
                   "judge": verdict.model_dump(mode="json") if verdict else None,
+                  "preliminary_assessment": preliminary_assessment,
                   "risk": {"approved": outcome == "EXECUTED", "quantity": qty, "reasons": risk_reasons},
                   "process_breakdown": parts, "order_id": order.id if order else None}
     with broker.Session.begin() as s:

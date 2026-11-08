@@ -142,9 +142,36 @@ def test_get_agents_selection(monkeypatch):
 
 def test_pipeline_journals_agent_backends_and_trial_id():
     s, df, *_ = buy_case()
-    b = PaperBroker(); b.checkin(NOW)
-    r = run_trial(s, df, "DEMO", b, RiskEngine(), {s: D(str(df.close.iloc[-1]))}, NOW, simulation_mode=True)
-    assert r["trial_id"] == 1 and "agent_backends" in r["transcript"] and "process_breakdown" in r["transcript"]
+    b = PaperBroker()
+    b.checkin(NOW)
+
+    class PreliminaryRuleAgents(RuleAgents):
+        def __init__(self):
+            super().__init__()
+            self.preliminary_assessment = None
+
+        def judge(self, p, pro, dfn, ev=None):
+            self.preliminary_assessment = {
+                "decision": "REDUCE",
+                "reasoning": "Preliminary assessment before arguments",
+                "supporting_ids": ["E2"],
+                "contradicting_ids": ["E4"],
+                "confidence": 0.7,
+            }
+            return super().judge(p, pro, dfn, ev)
+
+    agents = PreliminaryRuleAgents()
+    r = run_trial(
+        s, df, "DEMO", b, RiskEngine(),
+        {s: D(str(df.close.iloc[-1]))}, NOW,
+        simulation_mode=True, agents=agents,
+    )
+
+    transcript = r["transcript"]
+    assert r["trial_id"] == 1
+    assert "agent_backends" in transcript
+    assert "process_breakdown" in transcript
+    assert transcript["preliminary_assessment"] == agents.preliminary_assessment
 
 
 def test_memory_reads_own_track_record_and_reaches_prosecutor():

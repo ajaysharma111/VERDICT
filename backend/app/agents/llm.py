@@ -85,6 +85,7 @@ class LLMAgents(RuleAgents):
     def __init__(self, client: GeminiClient):
         super().__init__()
         self.client = client
+        self.preliminary_assessment = None
         self.backends = {k: "gemini" for k in self.backends}
 
     def _try(self, role, fn, fallback):
@@ -128,13 +129,13 @@ class LLMAgents(RuleAgents):
                 'JSON: {"points":[str,...max 5],"evidence_ids":[str],"severity":number 0..1 (strength of your case)}')
             sev = min(max(float(out.get("severity", 0.5)), 0.0), 1.0)
             return Argument(role=role, points=_points(out.get("points")), evidence_ids=_ids(out.get("evidence_ids"), ev), severity=sev)
-        return self._try(role.lower(), go, lambda: (self.backends.update({role.lower(): "fallback"}) or fallback()))
-
+        return self._try(role.lower(), go, fallback)
     def prosecutor(self, p, ev, ctx): return self._arg("PROSECUTOR", p, ev, lambda: rb.prosecutor(p, ev, ctx))
     def defender(self, p, ev, ctx): return self._arg("DEFENDER", p, ev, lambda: rb.defender(p, ev, ctx))
 
     def judge(self, p, pro, dfn, ev=None):
         base = rb.judge(p, pro, dfn)
+        self.preliminary_assessment = None
 
         # Compatibility for direct callers that do not provide original evidence.
         if ev is None:
@@ -183,6 +184,7 @@ class LLMAgents(RuleAgents):
                 '"contradicting_ids":[str],"confidence":number}'
             )
             assessment = validate_assessment(preliminary_raw)
+            self.preliminary_assessment = assessment.model_dump(mode="json")
 
             # Stage 2: only now does the Judge receive the adversarial arguments.
             final_raw = self.client.generate_json(
