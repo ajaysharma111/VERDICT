@@ -42,6 +42,9 @@ table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:6px 8px;
 .legend span{margin-right:14px;font-size:12px}.legend i{display:inline-block;width:10px;height:3px;margin-right:5px;vertical-align:middle}
 .note{color:var(--mute);font-size:12px}
 .ev{font-size:12px;color:#c3cad8}.ev.hl{background:#2b2410}
+.journal-ev{font-size:12px;color:#c3cad8;padding:7px;margin-top:7px;border-bottom:1px solid var(--line);border-radius:5px}
+.ev.hl,.journal-ev.hl{background:#2b2410;border:1px solid var(--gold)}
+
 select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font:inherit}
 .log{max-height:230px;overflow:auto;font-size:12px;font-family:Consolas,monospace;color:#b7c0d3}
 </style>
@@ -155,6 +158,7 @@ async function refresh(){
   $("#riskLog").innerHTML=lg.length?lg.map(l=>`<div>${esc(l.at.slice(0,19))} ${esc(l.event)} ${esc(l.symbol)} ${esc(l.detail)}</div>`).join(""):`<div class="note">No events</div>`;
 }
 $("#journal").addEventListener("click",async e=>{
+  if(e.target.closest(".chip"))return;
   const row=e.target.closest(".j");
   if(!row)return;
   const d=row.querySelector(".jd");
@@ -170,7 +174,7 @@ $("#journal").addEventListener("click",async e=>{
   const risk=t.risk||{};
 
   const section=(title,body)=>`<div class="j-section" style="margin-top:12px;padding:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px"><div class="role" style="margin-bottom:8px">${title}</div>${body}</div>`;
-  const refs=ids=>(ids||[]).map(id=>`<span class="tag">${esc(id)}</span>`).join(" ")||'<span class="note">None recorded</span>';
+  const refs=ids=>(ids||[]).map(id=>`<span class="chip" data-ev="${esc(id)}">${esc(id)}</span>`).join(" ")||'<span class="note">None recorded</span>';
   const points=items=>(items||[]).map(x=>`<li>${esc(x)}</li>`).join("")||'<li class="note">No arguments recorded</li>';
 
   const proposal=s.action==="BUY"
@@ -202,6 +206,37 @@ $("#journal").addEventListener("click",async e=>{
     ?`<b>${esc(p.decision)} → ${esc(judge.decision)}</b><div class="note">${p.decision===judge.decision?"The final decision matches the preliminary assessment.":"The final decision differs from the preliminary assessment after the arguments."}</div>`
     :'<div class="note">Decision comparison unavailable for this trial.</div>';
 
+  const evidence=Array.isArray(t.evidence)?t.evidence:[];
+  const actors=[
+    {name:"Strategist",ids:s.evidence_ids||[]},
+    {name:"Prosecutor",ids:pro.evidence_ids||[]},
+    {name:"Defender",ids:def.evidence_ids||[]},
+    {name:"Blind Judge · supporting",ids:p?.supporting_ids||[]},
+    {name:"Blind Judge · contradicting",ids:p?.contradicting_ids||[]},
+    {name:"Final Judge · supporting",ids:judge?.supporting_ids||[]},
+    {name:"Final Judge · contradicting",ids:judge?.contradicting_ids||[]}
+  ];
+  const known=new Set(evidence.map(item=>String(item.id)));
+  const citedBy=id=>actors.filter(a=>a.ids.map(String).includes(id)).map(a=>a.name);
+  const unknown=[...new Set(actors.flatMap(a=>a.ids.map(String).filter(id=>!known.has(id))))];
+  const citedCount=evidence.filter(item=>citedBy(String(item.id)).length>0).length;
+  const evidenceRows=evidence.map(item=>{
+    const id=String(item.id);
+    const citations=citedBy(id);
+    return `<div class="journal-ev" data-journal-evidence="${esc(id)}">
+      <b>${esc(id)}</b> [${esc(item.source)}] ${esc(item.finding)}:
+      ${esc(item.value)} — ${esc(item.interpretation)}
+      <span class="tag">${citations.length?"CITED":"UNCITED"}</span>
+      <div class="note">Cited by: ${citations.map(esc).join(" · ")||"No agent or Judge cited this evidence."}</div>
+      <div class="note">Timestamp: ${esc(item.timestamp||"Not recorded")}</div>
+    </div>`;
+  }).join("");
+  const auditHtml=`
+    <div class="note">Citation audit: ${evidence.length} evidence records · ${citedCount} cited · ${evidence.length-citedCount} uncited · ${unknown.length} unknown citation IDs.</div>
+    ${unknown.length?`<div class="neg" style="margin-top:8px">UNKNOWN EVIDENCE IDs: ${unknown.map(esc).join(", ")}</div>`:""}
+    <div class="note" style="margin-top:8px">Prosecutor and Defender citations apply to their overall arguments, not to individual bullet points.</div>
+    ${evidenceRows||'<div class="note">No evidence records were saved for this trial.</div>'}`;
+
   const riskHtml=`<b>${risk.approved?"APPROVED":"NOT APPROVED"}</b>
     <div class="note">Quantity: ${esc(risk.quantity??0)}</div>
     <div class="note">${(risk.reasons||[]).map(esc).join(" · ")||"No risk rejection reasons recorded."}</div>`;
@@ -212,7 +247,8 @@ $("#journal").addEventListener("click",async e=>{
     section("3 · ADVERSARIAL ARGUMENTS",argumentsHtml)+
     section("4 · FINAL JUDGE · STAGE 2",finalJudge)+
     section("5 · DECISION EVOLUTION",evolution)+
-    section("6 · RISK ENGINE",riskHtml);
+    section("6 · RISK ENGINE",riskHtml)+
+    section("7 · EVIDENCE TRACEABILITY AUDIT",auditHtml);
 });
 
 function evChips(ids){return (ids||[]).map(i=>`<span class="chip" data-ev="${esc(i)}">${esc(i)}</span>`).join("")}
@@ -279,8 +315,27 @@ async function showTrial(r){
 
   $("#ev").innerHTML=t.evidence.map(e=>`<div class="ev" id="ev-${esc(e.id)}"><b>${esc(e.id)}</b> [${esc(e.source)}] ${esc(e.finding)}: ${esc(e.value)} — ${esc(e.interpretation)}</div>`).join("");
 }
-document.addEventListener("click",e=>{const c=e.target.closest(".chip");if(!c)return;
-  document.querySelectorAll(".ev.hl").forEach(x=>x.classList.remove("hl"));const t=document.getElementById("ev-"+c.dataset.ev);if(t){t.classList.add("hl");t.scrollIntoView({block:"nearest"})}});
+document.addEventListener("click",e=>{
+  const c=e.target.closest(".chip");
+  if(!c)return;
+
+  document.querySelectorAll(".ev.hl,.journal-ev.hl").forEach(x=>x.classList.remove("hl"));
+
+  const journal=c.closest(".jd");
+  let target=null;
+
+  if(journal){
+    target=[...journal.querySelectorAll(".journal-ev")]
+      .find(x=>x.dataset.journalEvidence===c.dataset.ev)||null;
+  }else{
+    target=document.getElementById("ev-"+c.dataset.ev);
+  }
+
+  if(target){
+    target.classList.add("hl");
+    target.scrollIntoView({block:"nearest",behavior:"smooth"});
+  }
+});
 
 async function runTrial(sym){
   $("#trialNote").innerHTML='<span class="thinking dots">Trial in progress</span>';
