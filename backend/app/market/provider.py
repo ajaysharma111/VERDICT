@@ -9,10 +9,12 @@ from __future__ import annotations
 import os
 import json
 import threading
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Literal
 
+import httpx
 import pandas as pd
 
 from .demo_data import demo_candles
@@ -52,6 +54,131 @@ class DemoProvider(MarketDataProvider):
 
     def status(self) -> dict:
         return {"provider": "DEMO", "freshness": "DEMO", "connected": True}
+
+
+class LiveMarketProvider(MarketDataProvider):
+    """Real live market data for Indian NSE equities without requiring broker credentials.
+    Fetches real-time quotes and historical daily candles directly from official NSE feeds via Yahoo Finance.
+    """
+    name = "LIVE"
+
+    SYMBOL_ALIASES = {
+        "TATAMOTORS": "TMPV",  # Tata Motors Passenger Vehicles post-demerger
+    }
+
+    def __init__(self):
+        self._cache: dict[str, tuple[float, pd.DataFrame]] = {}
+        self._client = httpx.Client(
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+            timeout=12.0
+        )
+
+    def _resolve(self, symbol: str) -> str:
+        s = symbol.upper().replace(".NS", "").replace(".BO", "")
+        return self.SYMBOL_ALIASES.get(s, s)
+
+    def _ticker(self, symbol: str) -> str:
+        return f"{self._resolve(symbol)}.NS"
+
+    def connect(self) -> None:
+        pass
+
+    def historical(self, symbol: str, interval: str = "ONE_DAY", start: datetime | None = None, end: datetime | None = None) -> pd.DataFrame:
+        sym = self._resolve(symbol)
+        ticker = self._ticker(sym)
+        now_ts = time.time()
+        # 5-minute cache for daily candles
+        if sym in self._cache and (now_ts - self._cache[sym][0] < 300):
+            return self._cache[sym][1].copy()
+
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=2y"
+        try:
+            r = self._client.get(url)
+            r.raise_for_status()
+            data = r.json()
+            result = data.get("chart", {}).get("result")
+            if not result or not result[0]:
+                err = data.get("chart", {}).get("error", {}).get("description", "No data returned")
+                raise ProviderError(f"Failed to fetch historical data for {symbol}: {err}")
+
+            res = result[0]
+            timestamps = res.get("timestamp", [])
+            quote_data = res.get("indicators", {}).get("quote", [{}])[0]
+
+            df = pd.DataFrame({
+                "time": pd.to_datetime(timestamps, unit="s", utc=True),
+                "open": quote_data.get("open", []),
+                "high": quote_data.get("high", []),
+                "low": quote_data.get("low", []),
+                "close": quote_data.get("close", []),
+                "volume": quote_data.get("volume", []),
+            }).dropna()
+
+            if len(df) < 30:
+                raise ProviderError(f"Insufficient historical data for {symbol}")
+
+            df.index = df.pop("time").dt.tz_convert("Asia/Kolkata")
+            df = df.round(2)
+            df.attrs["source"] = "LIVE"
+            df.attrs["symbol"] = symbol.upper()
+
+            self._cache[sym] = (now_ts, df)
+            return df.copy()
+        except Exception as e:
+            if isinstance(e, ProviderError):
+                raise
+            raise ProviderError(f"Live historical data request failed for {symbol}: {e}") from e
+
+    def quote(self, symbol: str) -> dict:
+        sym = self._resolve(symbol)
+        ticker = self._ticker(sym)
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
+        try:
+            r = self._client.get(url)
+            r.raise_for_status()
+            data = r.json()
+            res = data["chart"]["result"][0]
+            meta = res["meta"]
+            price = meta.get("regularMarketPrice")
+            prev_close = meta.get("chartPreviousClose") or meta.get("previousClose") or price
+
+            if price is None:
+                q = res.get("indicators", {}).get("quote", [{}])[0]
+                closes = [c for c in q.get("close", []) if c is not None]
+                price = closes[-1] if closes else prev_close
+
+            p_flt = float(price)
+            prev_flt = float(prev_close) if prev_close else p_flt
+            change = round(p_flt - prev_flt, 2)
+            change_pct = round((change / prev_flt) * 100, 2) if prev_flt else 0.0
+
+            return {
+                "symbol": symbol.upper(),
+                "price": round(p_flt, 2),
+                "freshness": "LIVE",
+                "provider": "LIVE",
+                "change": change,
+                "change_pct": change_pct,
+                "high": round(float(meta.get("regularMarketDayHigh", p_flt)), 2),
+                "low": round(float(meta.get("regularMarketDayLow", p_flt)), 2),
+                "prev_close": round(prev_flt, 2),
+            }
+        except Exception as e:
+            raise ProviderError(f"Live quote failed for {symbol}: {e}") from e
+
+    def status(self) -> dict:
+        return {"provider": "LIVE", "freshness": "LIVE", "connected": True}
+
+
+def create_provider(mode: str = "demo") -> MarketDataProvider:
+    if mode.lower() == "demo":
+        return DemoProvider()
+    if os.getenv("LIVE_PROVIDER", "").lower() == "angelone":
+        return AngelOneProvider()
+    angel_keys = ("ANGELONE_API_KEY", "ANGELONE_CLIENT_CODE", "ANGELONE_PIN", "ANGELONE_TOTP_SECRET")
+    if all(os.getenv(k, "").strip() for k in angel_keys):
+        return AngelOneProvider()
+    return LiveMarketProvider()
 
 
 class AngelOneProvider(MarketDataProvider):

@@ -27,7 +27,9 @@ def test_broker_itself_refuses_buys_while_halted():
 
 def test_naive_utc_is_not_mistaken_for_local_time(monkeypatch):
     monkeypatch.setenv("TZ", "Asia/Kolkata")  # the user's Mac: naive local time would be IST
-    import time; time.tzset()
+    import time
+    if hasattr(time, "tzset"):
+        time.tzset()
     try:
         assert is_market_open(MON_1030_IST_NAIVE_UTC) is True
         assert is_market_open(MON_0130_IST_NAIVE_UTC) is False
@@ -37,7 +39,9 @@ def test_naive_utc_is_not_mistaken_for_local_time(monkeypatch):
         assert RiskEngine().check_entry(p, s, MON_1030_IST_NAIVE_UTC).approved
         assert not RiskEngine().check_entry(p, s, MON_0130_IST_NAIVE_UTC).approved
     finally:
-        monkeypatch.delenv("TZ"); time.tzset()
+        monkeypatch.delenv("TZ")
+        if hasattr(time, "tzset"):
+            time.tzset()
 
 
 def test_stop_fires_in_monitor_and_daily_loss_lock_persists_then_releases_next_day():
@@ -105,6 +109,7 @@ def test_api_blocks_foreign_hosts_and_cross_site_posts(raw_client):
 def test_live_mode_failure_is_an_error_not_demo_data(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path/'l.db'}")
     monkeypatch.setenv("MARKET_DATA_MODE", "live")
+    monkeypatch.setenv("LIVE_PROVIDER", "angelone")
     import app.main as m
     importlib.reload(m)
     c = TestClient(m.app, base_url="http://127.0.0.1:8000", headers={"X-Verdict-Client": "1"})

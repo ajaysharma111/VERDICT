@@ -6,16 +6,25 @@
     <title>VERDICT — The Trading Agent on Trial</title>
     <style>
       :root {
-        --bg: #0b1220;
-        --panel: #141b2b;
-        --panel2: #1a2336;
-        --line: #26324a;
-        --text: #e6e9f0;
-        --mute: #8b96ab;
-        --gold: #c9a24b;
-        --green: #3ecf8e;
-        --red: #ef5b5b;
-        --teal: #4fb3bf;
+        --bg: #090e1a;
+        --panel: #111827;
+        --panel2: #162032;
+        --panel3: #1c283f;
+        --line: #243048;
+        --line-light: #324363;
+        --text: #f0f3f9;
+        --text-sub: #cbd5e1;
+        --mute: #8190aa;
+        --gold: #f59e0b;
+        --gold-glow: rgba(245, 158, 11, 0.2);
+        --green: #10b981;
+        --green-glow: rgba(16, 185, 129, 0.2);
+        --red: #ef4444;
+        --red-glow: rgba(239, 68, 68, 0.2);
+        --teal: #06b6d4;
+        --indigo: #6366f1;
+        --radius: 10px;
+        --shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
       }
       * {
         box-sizing: border-box;
@@ -24,34 +33,45 @@
         margin: 0;
         background: var(--bg);
         color: var(--text);
-        font:
-          14px/1.5 "Segoe UI",
-          system-ui,
-          sans-serif;
+        font: 14px/1.5 "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
       header {
         display: flex;
         flex-wrap: wrap;
-        gap: 12px;
+        gap: 14px;
         align-items: center;
         justify-content: space-between;
-        padding: 14px 24px;
+        padding: 12px 24px;
         border-bottom: 1px solid var(--line);
-        background: #0e1627;
+        background: rgba(14, 21, 37, 0.95);
+        backdrop-filter: blur(10px);
         position: sticky;
         top: 0;
-        z-index: 5;
+        z-index: 100;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand-icon {
+        font-size: 24px;
+        line-height: 1;
       }
       .brand b {
-        letter-spacing: 0.28em;
+        letter-spacing: 0.24em;
         font-size: 20px;
         color: var(--gold);
+        text-shadow: 0 0 16px var(--gold-glow);
       }
       .brand small {
         display: block;
         color: var(--mute);
-        letter-spacing: 0.22em;
+        letter-spacing: 0.18em;
         font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
       }
       .badges {
         display: flex;
@@ -61,92 +81,249 @@
       }
       .badge {
         border: 1px solid var(--line);
-        padding: 3px 10px;
+        padding: 4px 10px;
         border-radius: 99px;
-        font-size: 12px;
+        font-size: 11px;
+        font-weight: 600;
         color: var(--mute);
+        background: var(--panel);
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
       }
       .badge.paper {
         color: var(--gold);
         border-color: var(--gold);
+        background: rgba(245, 158, 11, 0.08);
       }
       .badge.ok {
         color: var(--green);
         border-color: var(--green);
+        background: rgba(16, 185, 129, 0.08);
       }
       .badge.bad {
         color: var(--red);
         border-color: var(--red);
+        background: rgba(239, 68, 68, 0.08);
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: currentColor;
+        display: inline-block;
+      }
+      .pulse {
+        animation: pulse 1.8s infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.4; transform: scale(0.85); }
       }
       button {
         font: inherit;
+        font-size: 13px;
+        font-weight: 600;
         cursor: pointer;
         border-radius: 6px;
         border: 1px solid var(--line);
         background: var(--panel2);
         color: var(--text);
         padding: 7px 14px;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
       }
-      button:hover {
+      button:hover:not(:disabled) {
         border-color: var(--gold);
+        background: var(--panel3);
+        transform: translateY(-1px);
       }
       button:disabled {
-        opacity: 0.5;
-        cursor: wait;
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .btn-mode {
+        background: #17243c;
+        border-color: var(--teal);
+        color: var(--teal);
+      }
+      .btn-mode:hover {
+        background: #1e3052;
+        border-color: #38bdf8;
       }
       .stop {
-        background: var(--red);
-        border-color: var(--red);
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        border-color: #ef4444;
         color: #fff;
         font-weight: 700;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.05em;
+        box-shadow: 0 0 12px var(--red-glow);
       }
-      .stop:hover {
-        filter: brightness(1.1);
-        border-color: #fff;
+      .stop:hover:not(:disabled) {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+        border-color: #fca5a5;
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
       }
       .primary {
-        background: var(--gold);
-        color: #1a1405;
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: #111827;
         border-color: var(--gold);
-        font-weight: 600;
+        font-weight: 700;
+        box-shadow: 0 0 12px var(--gold-glow);
+      }
+      .primary:hover:not(:disabled) {
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        color: #000;
+      }
+      .secondary {
+        background: var(--panel2);
+        border-color: var(--line-light);
       }
       main {
-        padding: 20px 24px;
-        max-width: 1400px;
+        padding: 20px 24px 60px;
+        max-width: 1440px;
         margin: auto;
         display: grid;
-        gap: 18px;
+        gap: 20px;
       }
       .banner {
-        padding: 10px 14px;
+        padding: 12px 18px;
+        border-radius: var(--radius);
+        border: 1px solid var(--line);
+        background: var(--panel2);
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .banner.amber {
+        border-color: var(--gold);
+        background: rgba(245, 158, 11, 0.08);
+        color: #fcd34d;
+      }
+      .banner.red {
+        border-color: var(--red);
+        background: rgba(239, 68, 68, 0.1);
+        color: #fca5a5;
+      }
+      .banner.green {
+        border-color: var(--green);
+        background: rgba(16, 185, 129, 0.08);
+        color: #6ee7b7;
+      }
+      /* Watchlist interactive bar */
+      .watchlist-wrap {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 12px 16px;
+        box-shadow: var(--shadow);
+      }
+      .watchlist-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: var(--mute);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .watchlist-chips {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        scrollbar-width: thin;
+      }
+      .stock-chip {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
         border-radius: 8px;
-        border: 1px solid var(--red);
-        background: #2a1519;
-        color: #ffb4b4;
-        display: none;
+        background: var(--panel2);
+        border: 1px solid var(--line);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+      }
+      .stock-chip:hover {
+        border-color: var(--gold);
+        background: var(--panel3);
+        transform: translateY(-2px);
+      }
+      .stock-chip.active {
+        border-color: var(--gold);
+        background: rgba(245, 158, 11, 0.12);
+        box-shadow: 0 0 10px var(--gold-glow);
+      }
+      .stock-chip .sym {
+        font-weight: 700;
+        font-size: 13px;
+        color: var(--text);
+      }
+      .stock-chip .px {
+        font-weight: 600;
+        font-size: 12px;
+        color: var(--text-sub);
+      }
+      .stock-chip .chg {
+        font-size: 11px;
+        font-weight: 600;
       }
       .kpis {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 14px;
       }
       .card {
         background: var(--panel);
         border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 14px 16px;
+        border-radius: var(--radius);
+        padding: 16px 18px;
+        box-shadow: var(--shadow);
+      }
+      .kpi {
+        position: relative;
+        overflow: hidden;
       }
       .kpi .l {
         color: var(--mute);
-        font-size: 12px;
+        font-size: 11px;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.1em;
+        font-weight: 600;
       }
       .kpi .v {
-        font-size: 22px;
-        font-weight: 600;
+        font-size: 24px;
+        font-weight: 700;
+        margin-top: 4px;
+        letter-spacing: -0.02em;
+        transition: color 0.3s ease;
+      }
+      .kpi .sub {
+        font-size: 12px;
+        color: var(--mute);
         margin-top: 2px;
+      }
+      .flash-green {
+        animation: flashGreen 0.8s ease;
+      }
+      .flash-red {
+        animation: flashRed 0.8s ease;
+      }
+      @keyframes flashGreen {
+        0% { background: rgba(16, 185, 129, 0.3); }
+        100% { background: transparent; }
+      }
+      @keyframes flashRed {
+        0% { background: rgba(239, 68, 68, 0.3); }
+        100% { background: transparent; }
       }
       .pos {
         color: var(--green);
@@ -155,166 +332,268 @@
         color: var(--red);
       }
       h2 {
-        margin: 0 0 10px;
-        font-size: 13px;
-        letter-spacing: 0.14em;
+        margin: 0 0 12px;
+        font-size: 12px;
+        letter-spacing: 0.15em;
         text-transform: uppercase;
         color: var(--gold);
-        font-weight: 600;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
       }
       .grid2 {
         display: grid;
-        grid-template-columns: 3fr 2fr;
-        gap: 18px;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 20px;
       }
-      @media (max-width: 1000px) {
+      @media (max-width: 1100px) {
         .grid2 {
           grid-template-columns: 1fr;
         }
       }
-      .court {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      /* Courtroom */
+      .court-header {
+        display: flex;
         gap: 12px;
-        margin-top: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid var(--line);
+      }
+      .court-workflow {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 12px;
+        margin-top: 14px;
       }
       .agent {
         background: var(--panel2);
         border: 1px solid var(--line);
-        border-radius: 10px;
-        padding: 12px;
-        min-height: 150px;
-        opacity: 0.35;
-        transform: translateY(6px);
-        transition: all 0.45s;
+        border-radius: var(--radius);
+        padding: 14px;
+        min-height: 180px;
+        opacity: 0.45;
+        transform: translateY(4px);
+        transition: all 0.35s ease;
+        display: flex;
+        flex-direction: column;
       }
       .agent.on {
         opacity: 1;
         transform: none;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
       }
-      .agent.on.prosecutor {
-        border-color: #7a3a3a;
+      .agent.strategist.on {
+        border-color: #3b82f6;
       }
-      .agent.on.defender {
-        border-color: #2f6b55;
-      }
-      .agent.on.judge {
-        border-color: var(--gold);
-      }
-      .agent.on.preliminary {
+      .agent.preliminary.on {
         border-color: #8c7540;
         border-style: dashed;
       }
+      .agent.prosecutor.on {
+        border-color: var(--red);
+        background: linear-gradient(180deg, rgba(239, 68, 68, 0.05), var(--panel2));
+      }
+      .agent.defender.on {
+        border-color: var(--green);
+        background: linear-gradient(180deg, rgba(16, 185, 129, 0.05), var(--panel2));
+      }
+      .agent.judge.on {
+        border-color: var(--gold);
+        background: linear-gradient(180deg, rgba(245, 158, 11, 0.08), var(--panel2));
+      }
       .agent .role {
-        font-weight: 700;
+        font-weight: 800;
         letter-spacing: 0.1em;
-        font-size: 12px;
-        margin-bottom: 6px;
+        font-size: 11px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .agent .role-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 4px;
+        border: 1px solid currentColor;
       }
       .agent ul {
-        margin: 0;
-        padding-left: 16px;
-        color: #cfd5e2;
+        margin: 6px 0;
+        padding-left: 18px;
+        color: #d1d5db;
+        font-size: 12.5px;
       }
       .agent li {
-        margin-bottom: 3px;
+        margin-bottom: 5px;
+      }
+      .severity-bar {
+        height: 4px;
+        background: var(--line);
+        border-radius: 2px;
+        margin: 8px 0;
+        overflow: hidden;
+      }
+      .severity-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: width 0.4s ease;
       }
       .chip {
         display: inline-block;
         font-size: 11px;
-        border: 1px solid var(--line);
+        font-weight: 600;
+        border: 1px solid var(--line-light);
         border-radius: 4px;
-        padding: 0 6px;
-        margin: 2px 3px 0 0;
+        padding: 1px 7px;
+        margin: 2px 4px 2px 0;
         color: var(--teal);
+        background: rgba(6, 182, 212, 0.08);
         cursor: pointer;
+        transition: all 0.15s ease;
       }
       .chip:hover {
-        background: #0d2a30;
+        background: var(--teal);
+        color: #000;
+        border-color: var(--teal);
       }
       .verdict {
-        font-size: 20px;
-        font-weight: 800;
+        font-size: 22px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        margin: 4px 0;
       }
       .APPROVE {
         color: var(--green);
+        text-shadow: 0 0 12px var(--green-glow);
       }
       .REDUCE {
         color: var(--gold);
+        text-shadow: 0 0 12px var(--gold-glow);
       }
       .REJECT {
         color: var(--red);
+        text-shadow: 0 0 12px var(--red-glow);
       }
       .strip {
-        margin-top: 12px;
-        padding: 10px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--line);
+        margin-top: 14px;
+        padding: 14px 16px;
+        border-radius: var(--radius);
+        border: 1px solid var(--line-light);
         background: var(--panel2);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
       }
       .thinking {
         color: var(--mute);
+        font-style: italic;
       }
       .dots::after {
         content: "";
         animation: d 1.2s steps(4) infinite;
       }
       @keyframes d {
-        0% {
-          content: "";
-        }
-        25% {
-          content: ".";
-        }
-        50% {
-          content: "..";
-        }
-        75% {
-          content: "...";
-        }
+        0% { content: ""; }
+        25% { content: "."; }
+        50% { content: ".."; }
+        75% { content: "..."; }
       }
       table {
         width: 100%;
         border-collapse: collapse;
       }
-      th,
-      td {
+      th, td {
         text-align: left;
-        padding: 6px 8px;
+        padding: 8px 10px;
         border-bottom: 1px solid var(--line);
         font-size: 13px;
       }
       th {
         color: var(--mute);
-        font-weight: 500;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 11px;
+        letter-spacing: 0.08em;
       }
-      .j {
-        padding: 9px 0;
-        border-bottom: 1px solid var(--line);
+      tbody tr {
+        transition: background 0.15s ease;
+      }
+      tbody tr:hover {
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .table-clickable tbody tr {
         cursor: pointer;
       }
+      .table-clickable tbody tr:hover {
+        background: rgba(245, 158, 11, 0.06);
+      }
+      .btn-mini {
+        padding: 3px 8px;
+        font-size: 11px;
+        border-radius: 4px;
+        background: var(--panel3);
+        border: 1px solid var(--line-light);
+        color: var(--text-sub);
+      }
+      .btn-mini:hover {
+        border-color: var(--gold);
+        color: var(--gold);
+        background: rgba(245, 158, 11, 0.1);
+      }
+      .j {
+        padding: 12px 14px;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background 0.15s ease;
+      }
       .j:hover {
-        background: #18213a;
+        background: var(--panel2);
       }
       .j small {
         color: var(--mute);
       }
       .tag {
         font-size: 11px;
+        font-weight: 700;
         border-radius: 4px;
-        padding: 1px 6px;
+        padding: 2px 7px;
         border: 1px solid var(--line);
+        display: inline-block;
+      }
+      .tag.EXECUTED {
+        color: var(--green);
+        border-color: var(--green);
+        background: rgba(16, 185, 129, 0.1);
+      }
+      .tag.REJECTED_BY_JUDGE {
+        color: var(--red);
+        border-color: var(--red);
+        background: rgba(239, 68, 68, 0.1);
+      }
+      .tag.BLOCKED_BY_RISK {
+        color: #f97316;
+        border-color: #f97316;
+        background: rgba(249, 115, 22, 0.1);
+      }
+      .tag.NO_TRADE {
+        color: var(--mute);
+        border-color: var(--line-light);
       }
       .legend span {
-        margin-right: 14px;
+        margin-right: 16px;
         font-size: 12px;
+        color: var(--text-sub);
       }
       .legend i {
         display: inline-block;
-        width: 10px;
+        width: 12px;
         height: 3px;
-        margin-right: 5px;
+        margin-right: 6px;
         vertical-align: middle;
+        border-radius: 2px;
       }
       .note {
         color: var(--mute);
@@ -323,182 +602,253 @@
       .ev {
         font-size: 12px;
         color: #c3cad8;
+        padding: 4px 6px;
+        border-radius: 4px;
+        margin-bottom: 3px;
       }
-      .ev.hl {
-        background: #2b2410;
+      .ev.hl, .journal-ev.hl {
+        background: rgba(245, 158, 11, 0.15) !important;
+        border: 1px solid var(--gold) !important;
+        color: #fff;
       }
       .journal-ev {
         font-size: 12px;
         color: #c3cad8;
-        padding: 7px;
-        margin-top: 7px;
+        padding: 8px 10px;
+        margin-top: 6px;
         border-bottom: 1px solid var(--line);
-        border-radius: 5px;
+        border-radius: 6px;
+        background: var(--panel2);
       }
-      .ev.hl,
-      .journal-ev.hl {
-        background: #2b2410;
-        border: 1px solid var(--gold);
-      }
-
       select {
         background: var(--panel2);
         color: var(--text);
-        border: 1px solid var(--line);
+        border: 1px solid var(--line-light);
         border-radius: 6px;
-        padding: 7px 10px;
+        padding: 7px 12px;
         font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      select:focus {
+        outline: none;
+        border-color: var(--gold);
       }
       .log {
-        max-height: 230px;
-        overflow: auto;
-        font-size: 12px;
-        font-family: Consolas, monospace;
-        color: #b7c0d3;
+        max-height: 220px;
+        overflow-y: auto;
+        font-size: 11.5px;
+        font-family: Consolas, "Courier New", monospace;
+        color: #a0aec0;
+        background: #0d1322;
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid var(--line);
+      }
+      .log div {
+        margin-bottom: 4px;
       }
     </style>
   </head>
   <body>
     <header>
       <div class="brand">
-        <b>VERDICT</b><small>THE TRADING AGENT ON TRIAL</small>
+        <span class="brand-icon">⚖️</span>
+        <div>
+          <b>VERDICT</b><small>THE TRADING AGENT ON TRIAL</small>
+        </div>
       </div>
       <div class="badges">
-        <span class="badge paper">PAPER ONLY · VIRTUAL ₹</span>
-        <span class="badge" id="bData">data: …</span>
-        <span class="badge" id="bMkt">market: …</span>
-        <span class="badge" id="bHalt">…</span>
-        <button
-          id="btnAngel"
-          style="display: none"
-          title="Authenticate the configured Angel One market-data session"
-        >
+        <span class="badge paper">PAPER TRADING ONLY · VIRTUAL ₹</span>
+        <button id="btnMode" class="btn-mode" title="Click to toggle between DEMO and LIVE real NSE data">
+          <span class="dot pulse"></span> <span id="bDataText">Data: DEMO</span>
+        </button>
+        <span class="badge" id="bMkt"><span class="dot"></span> market: …</span>
+        <span class="badge" id="bHalt"><span class="dot"></span> status: …</span>
+        <button id="btnAngel" style="display: none" title="Authenticate Angel One SmartAPI session">
           Connect Angel One
         </button>
-        <button
-          id="btnCheck"
-          title="Dead-man switch: entries stop if no check-in for 24h"
-        >
-          I'm here (check-in)
+        <button id="btnCheck" title="Dead-man switch: automated entries pause if no human check-in within 24h">
+          👤 Check-in
         </button>
-        <button id="btnResume" style="display: none">Resume</button>
-        <button id="btnStop" class="stop">STOP TRADING</button>
+        <button id="btnResume" style="display: none" class="primary">Resume</button>
+        <button id="btnStop" class="stop">🛑 STOP TRADING</button>
       </div>
     </header>
+
     <main>
       <div class="banner" id="banner"></div>
-      <section class="kpis" id="kpis"></section>
 
-      <section class="card">
-        <h2>Market tick stream</h2>
-        <div class="note" id="streamStatus">
-          Connecting to local market stream…
+      <!-- Quick interactive watchlist bar -->
+      <section class="watchlist-wrap">
+        <div class="watchlist-header">
+          <span>Click any stock to select &amp; send for verdict trial</span>
+          <span class="note" id="watchlistCount">10 Indian Equities</span>
         </div>
-        <table id="tickTable">
-          <tr>
-            <th>Symbol</th>
-            <th>Last price</th>
-            <th>Source</th>
-            <th>Updated</th>
-          </tr>
-          <tr>
-            <td colspan="4" class="note">Waiting for ticks…</td>
-          </tr>
-        </table>
-        <div class="note" style="margin-top: 6px">
-          DEMO ticks are synthetic. LIVE ticks require an authenticated Angel
-          One session and configured instrument tokens. This feed is data-only;
-          all orders remain paper trades.
+        <div class="watchlist-chips" id="watchlistChips">
+          <span class="note">Loading watchlist…</span>
         </div>
       </section>
 
-      <section class="card">
-        <h2>Live trial</h2>
-        <div
-          style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center"
-        >
-          <select id="sym"></select>
-          <button class="primary" id="btnTrial">Start trial</button>
-          <button id="btnAll">Run whole watchlist</button>
-          <span class="note" id="trialNote"></span>
+      <!-- KPI Summary Cards -->
+      <section class="kpis" id="kpis"></section>
+
+      <!-- Live Courtroom Trial View -->
+      <section class="card" id="courtCard">
+        <h2>
+          <span>Courtroom Trial — <span id="trialSelectedSym" style="color:var(--text)">RELIANCE</span></span>
+          <span class="note" id="trialStatusBadge">Ready for trial</span>
+        </h2>
+        <div class="court-header">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+            <label class="note" for="sym">Target:</label>
+            <select id="sym"></select>
+            <button class="primary" id="btnTrial">⚖️ Start Trial</button>
+            <button id="btnAll" class="secondary">Run Whole Watchlist</button>
+            <span class="note" id="trialNote"></span>
+          </div>
+          <div class="note">
+            Each trade stands trial: Evidence → Strategist → Stage 1 Blind Judge → Prosecutor vs Defender → Stage 2 Final Judge
+          </div>
         </div>
-        <div class="court" id="court">
+
+        <div class="court-workflow" id="court">
           <div class="agent strategist" id="a-s">
-            <div class="role">⚖ STRATEGIST</div>
-            <div class="body note">Proposes a trade</div>
+            <div class="role">
+              <span>⚖ STRATEGIST</span>
+              <span class="role-badge" style="color:#60a5fa">Step 1</span>
+            </div>
+            <div class="body note">Proposes a trade gated by backtest</div>
           </div>
           <div class="agent judge preliminary" id="a-pj">
-            <div class="role">BLIND JUDGE · STAGE 1</div>
-            <div class="body note">Initial assessment before arguments</div>
+            <div class="role">
+              <span>👁 BLIND JUDGE · STAGE 1</span>
+              <span class="role-badge" style="color:var(--gold)">Step 2</span>
+            </div>
+            <div class="body note">Unbiased assessment before hearing counsel</div>
           </div>
           <div class="agent prosecutor" id="a-p">
-            <div class="role">PROSECUTOR</div>
-            <div class="body note">Argues against</div>
+            <div class="role">
+              <span>⚔ PROSECUTOR</span>
+              <span class="role-badge" style="color:var(--red)">Step 3</span>
+            </div>
+            <div class="body note">Argues against the trade</div>
           </div>
           <div class="agent defender" id="a-d">
-            <div class="role">DEFENDER</div>
-            <div class="body note">Argues for</div>
+            <div class="role">
+              <span>🛡 DEFENDER</span>
+              <span class="role-badge" style="color:var(--green)">Step 4</span>
+            </div>
+            <div class="body note">Argues in favor of the trade</div>
           </div>
           <div class="agent judge" id="a-j">
-            <div class="role">JUDGE</div>
-            <div class="body note">Approves, shrinks or rejects</div>
+            <div class="role">
+              <span>🏛 FINAL JUDGE</span>
+              <span class="role-badge" style="color:var(--gold)">Step 5</span>
+            </div>
+            <div class="body note">Approves, shrinks or rejects trade</div>
           </div>
         </div>
+
         <div class="strip" id="outcome" style="display: none"></div>
-        <details style="margin-top: 10px" id="evWrap" open>
-          <summary class="note">
-            Evidence report (click an ID chip to highlight)
+
+        <details style="margin-top: 14px" id="evWrap" open>
+          <summary class="note" style="cursor: pointer; user-select: none">
+            📋 Numbered Evidence Report (click any ID chip to highlight fact)
           </summary>
-          <div id="ev"></div>
+          <div id="ev" style="margin-top: 10px"></div>
         </details>
       </section>
 
+      <!-- Market Tick Stream -->
+      <section class="card">
+        <h2>
+          <span>Live Market Tick Stream</span>
+          <span class="note" id="streamStatus">Connecting to feed…</span>
+        </h2>
+        <div style="overflow-x: auto">
+          <table class="table-clickable" id="tickTable">
+            <thead>
+              <tr>
+                <th>Symbol</th>
+                <th>Live Price (LTP)</th>
+                <th>24h Change</th>
+                <th>Day High / Low</th>
+                <th>Feed Source</th>
+                <th>Updated</th>
+                <th style="text-align: right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="7" class="note">Waiting for market ticks…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="note" style="margin-top: 8px">
+          💡 <b>Tip:</b> Click any row or the <b>Verdict</b> button to immediately select that stock and analyze it in court.
+        </div>
+      </section>
+
       <div class="grid2">
+        <!-- Backtest Section -->
         <section class="card">
-          <h2>Strategy vs buy-and-hold</h2>
-          <div class="note">
-            Historical out-of-sample backtest (walk-forward), not
-            paper-portfolio performance. <span id="btSrc"></span>
+          <h2>
+            <span>Strategy vs Buy-and-Hold</span>
+            <span class="note" id="btSelected">Walk-forward Out-of-Sample</span>
+          </h2>
+          <div class="note" style="margin-bottom: 6px">
+            Historical walk-forward validation (train 252 bars, test unseen 63 bars). A strategy trades only if it beats Buy-and-Hold on Sharpe.
+            <span id="btSrc"></span>
           </div>
-          <svg
-            id="chart"
-            viewBox="0 0 700 260"
-            width="100%"
-            style="margin-top: 6px"
-          ></svg>
-          <div class="legend" id="legend"></div>
-          <table id="btTable" style="margin-top: 8px"></table>
+          <svg id="chart" viewBox="0 0 700 260" width="100%" style="margin-top: 6px"></svg>
+          <div class="legend" id="legend" style="margin-top: 6px"></div>
+          <div style="overflow-x: auto; margin-top: 10px">
+            <table id="btTable"></table>
+          </div>
         </section>
+
+        <!-- Open Positions & Risk Log -->
         <section class="card">
-          <h2>Open positions</h2>
-          <table id="posTable"></table>
-          <h2 style="margin-top: 16px">Risk &amp; safety log</h2>
+          <h2>
+            <span>Open Paper Positions</span>
+            <span class="note" id="posCountBadge">0 / 5 Active</span>
+          </h2>
+          <div style="overflow-x: auto">
+            <table id="posTable"></table>
+          </div>
+          <h2 style="margin-top: 20px">
+            <span>Risk Engine Audit Log</span>
+          </h2>
           <div class="log" id="riskLog"></div>
         </section>
       </div>
 
+      <!-- Trading Journal -->
       <section class="card">
-        <h2>Trading journal</h2>
+        <h2>
+          <span>Courtroom Trading Journal &amp; Transcripts</span>
+          <span class="note">Click any trial to expand complete transcript</span>
+        </h2>
         <div id="journal"></div>
       </section>
     </main>
+
     <script>
       const $ = (s) => document.querySelector(s);
       const esc = (s) =>
-        String(s ?? "").replace(
-          /[&<>"']/g,
-          (c) =>
-            ({
-              "&": "&amp;",
-              "<": "&lt;",
-              ">": "&gt;",
-              '"': "&quot;",
-              "'": "&#39;",
-            })[c],
-        );
+        String(s ?? "").replace(/[&<>"']/g, (c) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c]);
       const inr = (n) =>
-        "₹" + Number(n).toLocaleString("en-IN", { maximumFractionDigits: 2 });
-      const cls = (n) => (Number(n) >= 0 ? "pos" : "neg");
+        "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const cls = (n) => (Number(n) > 0 ? "pos" : Number(n) < 0 ? "neg" : "");
+
       async function api(path, opt = {}) {
         opt.headers = { "X-Verdict-Client": "1", ...(opt.headers || {}) };
         const r = await fetch(path, opt);
@@ -511,61 +861,212 @@
         }
         return r.json();
       }
+
       const post = (p, b) =>
         api(p, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: b ? JSON.stringify(b) : undefined,
         });
+
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+      // Global client state for real-time auto-updating unrealized P&L
       const latestTicks = new Map();
-      let marketSocket = null,
-        reconnectDelay = 1000;
-      function renderTicks() {
-        const rows = [...latestTicks.values()].sort((a, b) =>
-          a.symbol.localeCompare(b.symbol),
-        );
-        $("#tickTable").innerHTML =
-          "<tr><th>Symbol</th><th>Last price</th><th>Source</th><th>Updated</th></tr>" +
-          (rows.length
-            ? rows
-                .map(
-                  (t) =>
-                    `<tr><td><b>${esc(t.symbol)}</b></td><td>${inr(t.price)}</td><td>${esc(t.freshness || t.provider)}</td><td class="note">${new Date(t.at).toLocaleTimeString()}</td></tr>`,
-                )
-                .join("")
-            : '<tr><td colspan="4" class="note">Waiting for ticks…</td></tr>');
+      let currentPositions = [];
+      let currentCash = 100000;
+      let currentRealizedPnl = 0;
+      let currentHalted = false;
+      let currentHaltReason = "";
+      let currentDataMode = "DEMO";
+      let marketSocket = null;
+      let reconnectDelay = 1000;
+
+      // Select a stock interactively
+      async function selectStock(symbol) {
+        if (!symbol) return;
+        symbol = symbol.toUpperCase();
+        $("#sym").value = symbol;
+        $("#trialSelectedSym").textContent = symbol;
+
+        // Highlight watchlist chip
+        document.querySelectorAll(".stock-chip").forEach((chip) => {
+          chip.classList.toggle("active", chip.dataset.symbol === symbol);
+        });
+
+        // Highlight tick table row
+        document.querySelectorAll("#tickTable tbody tr").forEach((row) => {
+          row.classList.toggle("active", row.dataset.symbol === symbol);
+        });
+
+        // Load backtest chart for selected symbol
+        try {
+          await loadBacktest();
+        } catch (e) {
+          $("#btSrc").textContent = "Backtest load: " + e.message;
+        }
       }
+
+      // Render the quick watchlist bar
+      function renderWatchlistBar(symbols) {
+        if (!symbols || !symbols.length) return;
+        const currentSelected = $("#sym").value || symbols[0];
+        $("#watchlistChips").innerHTML = symbols
+          .map((s) => {
+            const tick = latestTicks.get(s);
+            const px = tick ? inr(tick.price) : "…";
+            const chg = tick && tick.change_pct !== undefined ? `${tick.change_pct >= 0 ? "+" : ""}${tick.change_pct}%` : "";
+            const chgClass = tick && tick.change_pct ? cls(tick.change_pct) : "";
+            const isActive = s === currentSelected ? "active" : "";
+            return `<div class="stock-chip ${isActive}" data-symbol="${esc(s)}" onclick="selectStock('${esc(s)}')">
+              <span class="sym">${esc(s)}</span>
+              <span class="px" id="wchip-px-${esc(s)}">${px}</span>
+              <span class="chg ${chgClass}" id="wchip-chg-${esc(s)}">${chg}</span>
+            </div>`;
+          })
+          .join("");
+      }
+
+      // Render market tick stream table
+      function renderTicks() {
+        const rows = [...latestTicks.values()].sort((a, b) => a.symbol.localeCompare(b.symbol));
+        const currentSelected = $("#sym").value;
+        const tbody = $("#tickTable tbody");
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="note">Waiting for market ticks…</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = rows
+          .map((t) => {
+            const chg = t.change !== undefined ? `${t.change >= 0 ? "+" : ""}${inr(t.change)} (${t.change_pct >= 0 ? "+" : ""}${t.change_pct}%)` : "—";
+            const chgClass = t.change !== undefined ? cls(t.change) : "";
+            const hiLo = t.high && t.low ? `${inr(t.high)} / ${inr(t.low)}` : "—";
+            const isSel = t.symbol === currentSelected ? 'style="background:rgba(245,158,11,0.08)"' : "";
+            return `<tr ${isSel} data-symbol="${esc(t.symbol)}" onclick="selectStock('${esc(t.symbol)}')">
+              <td><b>${esc(t.symbol)}</b></td>
+              <td><b>${inr(t.price)}</b></td>
+              <td class="${chgClass}">${chg}</td>
+              <td class="note">${hiLo}</td>
+              <td><span class="badge ${t.freshness === "LIVE" ? "ok" : ""}">${esc(t.freshness || t.provider)}</span></td>
+              <td class="note">${new Date(t.at).toLocaleTimeString()}</td>
+              <td style="text-align:right">
+                <button class="btn-mini" onclick="event.stopPropagation(); selectStock('${esc(t.symbol)}'); document.getElementById('courtCard').scrollIntoView({behavior:'smooth'});">
+                  ⚖ Verdict
+                </button>
+              </td>
+            </tr>`;
+          })
+          .join("");
+
+        // Also update watchlist chips prices
+        rows.forEach((t) => {
+          const pxEl = document.getElementById(`wchip-px-${t.symbol}`);
+          if (pxEl) pxEl.textContent = inr(t.price);
+          const chgEl = document.getElementById(`wchip-chg-${t.symbol}`);
+          if (chgEl && t.change_pct !== undefined) {
+            chgEl.textContent = `${t.change_pct >= 0 ? "+" : ""}${t.change_pct}%`;
+            chgEl.className = "chg " + cls(t.change_pct);
+          }
+        });
+      }
+
+      // Real-time automatic recalculation of positions and unrealized P&L
+      function updatePositionsAndUnrealized(updatedSymbol, updatedPrice) {
+        if (!currentPositions.length) {
+          // If no positions, unrealized P&L is 0
+          renderKpis(0);
+          return;
+        }
+
+        let totalUnrealized = 0;
+        let totalPositionValue = 0;
+
+        currentPositions.forEach((pos) => {
+          let ltp = pos.current_price || Number(pos.avg_price);
+          if (latestTicks.has(pos.symbol)) {
+            ltp = latestTicks.get(pos.symbol).price;
+            pos.current_price = ltp;
+          }
+          const avg = Number(pos.avg_price);
+          const pnl = (ltp - avg) * pos.quantity;
+          const pnlPct = avg > 0 ? ((ltp - avg) / avg) * 100 : 0;
+          pos.unrealized_pnl = pnl;
+          pos.unrealized_pnl_pct = pnlPct;
+
+          totalUnrealized += pnl;
+          totalPositionValue += ltp * pos.quantity;
+
+          // Update position table row live
+          const ltpCell = document.getElementById(`pos-ltp-${pos.symbol}`);
+          if (ltpCell) ltpCell.textContent = inr(ltp);
+
+          const pnlCell = document.getElementById(`pos-pnl-${pos.symbol}`);
+          if (pnlCell) {
+            pnlCell.innerHTML = `<span class="${cls(pnl)}">${inr(pnl)} (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)</span>`;
+          }
+        });
+
+        // Update KPI card
+        renderKpis(totalUnrealized, totalPositionValue);
+      }
+
+      function renderKpis(unrealizedPnl = 0, totalPositionValue = 0) {
+        const equity = currentCash + totalPositionValue;
+        const pnl = Number(currentRealizedPnl) + Number(unrealizedPnl);
+        const pnlCls = cls(unrealizedPnl);
+
+        const el = $("#kpis");
+        el.innerHTML = [
+          ["Total Equity", inr(equity), ""],
+          ["Available Cash", inr(currentCash), ""],
+          ["Realized P&L", inr(currentRealizedPnl), cls(currentRealizedPnl)],
+          ["Unrealized P&L", `<span class="${pnlCls} pnl-flash">${inr(unrealizedPnl)}</span>`, ""],
+          ["Open Positions", `${currentPositions.length} / 5`, ""],
+        ]
+          .map(
+            ([l, v, c]) =>
+              `<div class="card kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`,
+          )
+          .join("");
+      }
+
+      // Connect to the WebSocket tick stream
       function connectMarketStream() {
         const scheme = location.protocol === "https:" ? "wss" : "ws";
         marketSocket = new WebSocket(`${scheme}://${location.host}/ws/market`);
+
         marketSocket.onopen = () => {
           reconnectDelay = 1000;
-          $("#streamStatus").textContent = "Connected · receiving market ticks";
+          $("#streamStatus").innerHTML = '<span class="dot ok pulse"></span> Connected · streaming ticks';
           marketSocket.send("ready");
         };
+
         marketSocket.onmessage = (e) => {
           try {
             const t = JSON.parse(e.data);
             if (t.type === "tick" && t.symbol) {
               latestTicks.set(t.symbol, t);
               renderTicks();
-              $("#streamStatus").textContent =
-                `Connected · ${t.provider} · last tick ${new Date(t.at).toLocaleTimeString()}`;
+              updatePositionsAndUnrealized(t.symbol, t.price);
+              $("#streamStatus").innerHTML =
+                `<span class="dot ok pulse"></span> ${esc(t.provider)} · last tick: <b>${esc(t.symbol)} ${inr(t.price)}</b> (${new Date(t.at).toLocaleTimeString()})`;
             }
           } catch {}
         };
+
         marketSocket.onerror = () => {
           $("#streamStatus").textContent = "Market stream connection error";
         };
+
         marketSocket.onclose = () => {
-          $("#streamStatus").textContent =
-            "Stream disconnected · reconnecting…";
+          $("#streamStatus").textContent = "Stream disconnected · reconnecting…";
           setTimeout(connectMarketStream, reconnectDelay);
           reconnectDelay = Math.min(reconnectDelay * 2, 15000);
         };
       }
 
+      // Refresh portfolio, health, journal, and risk logs
       async function refresh() {
         const [h, pf, j, lg] = await Promise.all([
           api("/api/health"),
@@ -573,69 +1074,124 @@
           api("/api/journal"),
           api("/api/risk/logs"),
         ]);
-        $("#bData").textContent = "data: " + h.data_mode;
-        $("#bData").className = "badge " + (h.data_mode === "DEMO" ? "" : "ok");
+
+        currentDataMode = h.data_mode;
+        currentCash = Number(pf.cash);
+        currentRealizedPnl = Number(pf.realized_pnl);
+        currentHalted = pf.halted;
+        currentHaltReason = pf.halt_reason;
+        currentPositions = pf.positions || [];
+
+        // Header status badges
+        $("#bDataText").textContent = `Data: ${h.data_mode}`;
+        $("#btnMode").className = `btn-mode ${h.data_mode === "LIVE" ? "badge ok" : ""}`;
         $("#btnAngel").style.display = h.data_mode === "LIVE" ? "" : "none";
-        $("#bMkt").textContent =
-          "market: " + (h.market_open ? "OPEN" : "CLOSED");
-        $("#bMkt").className = "badge " + (h.market_open ? "ok" : "");
-        $("#bHalt").textContent = pf.halted ? "HALTED" : "ACTIVE";
-        $("#bHalt").className = "badge " + (pf.halted ? "bad" : "ok");
+
+        $("#bMkt").innerHTML = `<span class="dot ${h.market_open ? "ok" : ""}"></span> market: ${h.market_open ? "OPEN" : "CLOSED"}`;
+        $("#bMkt").className = `badge ${h.market_open ? "ok" : ""}`;
+
+        $("#bHalt").innerHTML = `<span class="dot ${pf.halted ? "bad" : "ok"}"></span> ${pf.halted ? "HALTED" : "ACTIVE"}`;
+        $("#bHalt").className = `badge ${pf.halted ? "bad" : "ok"}`;
         $("#btnResume").style.display = pf.halted ? "" : "none";
+
+        // Banner notifications
         const b = $("#banner");
         if (pf.halted) {
-          b.style.display = "block";
-          b.textContent =
-            "Trading halted: " +
-            pf.halt_reason +
-            ". New entries are blocked until a human resumes.";
+          b.className = "banner red";
+          b.style.display = "flex";
+          b.innerHTML = `<span>⚠️ <b>Trading Halted:</b> ${esc(pf.halt_reason || "Kill switch engaged")}. New entries are locked.</span>
+                         <button onclick="document.getElementById('btnResume').click()" class="btn-mini">Resume System</button>`;
         } else if (h.data_mode === "DEMO") {
-          b.style.display = "block";
-          b.style.borderColor = "var(--gold)";
-          b.style.background = "#262012";
-          b.style.color = "#e8d29a";
-          b.textContent =
-            "DEMO mode: synthetic candles and headlines. Nothing here is real market data.";
-        } else b.style.display = "none";
-        const pnl = Number(pf.realized_pnl) + Number(pf.unrealized_pnl);
-        $("#kpis").innerHTML = [
-          ["Equity", inr(pf.equity), ""],
-          ["Cash", inr(pf.cash), ""],
-          ["Realized P&L", inr(pf.realized_pnl), cls(pf.realized_pnl)],
-          ["Unrealized P&L", inr(pf.unrealized_pnl), cls(pf.unrealized_pnl)],
-          ["Open positions", pf.positions.length + " / 5", ""],
-        ]
-          .map(
-            ([l, v, c]) =>
-              `<div class="card kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`,
-          )
-          .join("");
-        $("#posTable").innerHTML = pf.positions.length
-          ? `<tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>Stop</th><th>Target</th><th>I am wrong if…</th></tr>` +
-            pf.positions
-              .map(
-                (p) =>
-                  `<tr><td>${esc(p.symbol)}</td><td>${p.quantity}</td><td>${inr(p.avg_price)}</td><td>${inr(p.stop)}</td><td>${inr(p.target)}</td><td class="note">${esc(p.i_am_wrong_if)}</td></tr>`,
-              )
-              .join("")
-          : `<tr><td class="note">No open positions</td></tr>`;
+          b.className = "banner amber";
+          b.style.display = "flex";
+          b.innerHTML = `<span>ℹ️ <b>DEMO MODE:</b> Using simulated prices &amp; headlines. Switch to <b>LIVE</b> for real-time NSE market data.</span>
+                         <button onclick="toggleMarketMode()" class="btn-mini primary">Switch to LIVE Data ⚡</button>`;
+        } else {
+          b.className = "banner green";
+          b.style.display = "flex";
+          b.innerHTML = `<span>⚡ <b>LIVE MODE:</b> Connected to real-world National Stock Exchange of India (NSE) market data feeds.</span>
+                         <button onclick="toggleMarketMode()" class="btn-mini">Switch to DEMO</button>`;
+        }
+
+        $("#posCountBadge").textContent = `${currentPositions.length} / 5 Active`;
+
+        // Render Positions table
+        $("#posTable").innerHTML = currentPositions.length
+          ? `<thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>LTP (Live)</th><th>Unrealized P&L</th><th>Stop</th><th>Target</th><th>Thesis Invalidation</th></tr></thead><tbody>` +
+            currentPositions
+              .map((p) => {
+                const ltp = p.current_price || (latestTicks.has(p.symbol) ? latestTicks.get(p.symbol).price : Number(p.avg_price));
+                const pnl = (ltp - Number(p.avg_price)) * p.quantity;
+                const pnlPct = Number(p.avg_price) > 0 ? ((ltp - Number(p.avg_price)) / Number(p.avg_price)) * 100 : 0;
+                return `<tr onclick="selectStock('${esc(p.symbol)}')">
+                  <td><b>${esc(p.symbol)}</b></td>
+                  <td>${p.quantity}</td>
+                  <td>${inr(p.avg_price)}</td>
+                  <td id="pos-ltp-${esc(p.symbol)}"><b>${inr(ltp)}</b></td>
+                  <td id="pos-pnl-${esc(p.symbol)}"><span class="${cls(pnl)}">${inr(pnl)} (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)</span></td>
+                  <td>${inr(p.stop)}</td>
+                  <td>${inr(p.target)}</td>
+                  <td class="note">${esc(p.i_am_wrong_if || "—")}</td>
+                </tr>`;
+              })
+              .join("") +
+            `</tbody>`
+          : `<tr><td colspan="8" class="note">No open positions. Select a stock to run a verdict trial.</td></tr>`;
+
+        // Render initial KPIs with initial unrealized calculation
+        updatePositionsAndUnrealized();
+
+        // Render Journal
         $("#journal").innerHTML = j.length
           ? j
               .map(
                 (e) =>
-                  `<div class="j" data-id="${e.id}"><span class="tag">${esc(e.outcome)}</span> <b>${esc(e.symbol)}</b> <small>process score ${e.process_score}/100 · ${esc(e.at)}</small><div>${esc(e.summary)}</div><div class="jd"></div></div>`,
+                  `<div class="j" data-id="${e.id}">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                      <div>
+                        <span class="tag ${esc(e.outcome)}">${esc(e.outcome)}</span>
+                        <b>${esc(e.symbol)}</b>
+                      </div>
+                      <span class="badge ${e.process_score >= 80 ? "ok" : ""}">Process Score: ${e.process_score}/100</span>
+                    </div>
+                    <small class="note">${esc(e.at)}</small>
+                    <div style="margin-top:4px">${esc(e.summary)}</div>
+                    <div class="jd"></div>
+                  </div>`,
               )
               .join("")
           : `<div class="note">No trials yet. Start one above.</div>`;
+
+        // Render Risk logs
         $("#riskLog").innerHTML = lg.length
           ? lg
               .map(
                 (l) =>
-                  `<div>${esc(l.at.slice(0, 19))} ${esc(l.event)} ${esc(l.symbol)} ${esc(l.detail)}</div>`,
+                  `<div><span style="color:var(--mute)">${esc(l.at.slice(0, 19))}</span> <b>${esc(l.event)}</b> ${esc(l.symbol)}: ${esc(l.detail)}</div>`,
               )
               .join("")
-          : `<div class="note">No events</div>`;
+          : `<div class="note">No risk events logged</div>`;
       }
+
+      // Mode toggling between DEMO and LIVE
+      async function toggleMarketMode() {
+        const nextMode = currentDataMode === "DEMO" ? "live" : "demo";
+        try {
+          $("#btnMode").disabled = true;
+          const r = await post("/api/market/mode", { mode: nextMode });
+          latestTicks.clear();
+          await refresh();
+          await loadBacktest();
+          alert(`Switched to ${r.mode.toUpperCase()} mode! Feed: ${r.provider}`);
+        } catch (e) {
+          alert("Could not change mode: " + e.message);
+        } finally {
+          $("#btnMode").disabled = false;
+        }
+      }
+      $("#btnMode").onclick = toggleMarketMode;
+
+      // Expand journal entries
       $("#journal").addEventListener("click", async (e) => {
         if (e.target.closest(".chip")) return;
         const row = e.target.closest(".j");
@@ -648,12 +1204,13 @@
 
         let j, t;
         try {
-        j = await api("/api/journal/" + row.dataset.id);
-        t = JSON.parse(j.transcript);
-        }  catch (error) {
-        d.innerHTML = `<div class="note">Could not load journal entry: ${esc(error.message)}</div>`;
-        return;
+          j = await api("/api/journal/" + row.dataset.id);
+          t = JSON.parse(j.transcript);
+        } catch (error) {
+          d.innerHTML = `<div class="note">Could not load journal entry: ${esc(error.message)}</div>`;
+          return;
         }
+
         const s = t.strategist || {};
         const p = t.preliminary_assessment;
         const pro = t.prosecutor || {};
@@ -662,14 +1219,11 @@
         const risk = t.risk || {};
 
         const section = (title, body) =>
-          `<div class="j-section" style="margin-top:12px;padding:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px"><div class="role" style="margin-bottom:8px">${title}</div>${body}</div>`;
+          `<div class="j-section" style="margin-top:12px;padding:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px"><div class="role" style="font-weight:700;margin-bottom:8px">${title}</div>${body}</div>`;
         const refs = (ids) =>
           (ids || [])
-            .map(
-              (id) =>
-                `<span class="chip" data-ev="${esc(id)}">${esc(id)}</span>`,
-            )
-            .join(" ") || '<span class="note">None recorded</span>';
+            .map((id) => `<span class="chip" data-ev="${esc(id)}">${esc(id)}</span>`)
+            .join(" ") || '<span class="note">None cited</span>';
         const points = (items) =>
           (items || []).map((x) => `<li>${esc(x)}</li>`).join("") ||
           '<li class="note">No arguments recorded</li>';
@@ -681,227 +1235,156 @@
 
         const preliminary = p
           ? `<div class="verdict ${esc(p.decision)}">${esc(p.decision)}</div>
-      <div class="note">Blind assessment · Confidence ${Number.isFinite(Number(p.confidence)) ? (Number(p.confidence) * 100).toFixed(0) + "%" : "N/A"}</div>
-      <div>${esc(p.reasoning)}</div>
-      <div class="note" style="margin-top:8px">Supporting evidence: ${refs(p.supporting_ids)}</div>
-      <div class="note">Contradicting evidence: ${refs(p.contradicting_ids)}</div>`
-          : '<div class="note">No preliminary assessment recorded for this trial.</div>';
+             <div class="note">Blind assessment · Confidence ${(Number(p.confidence || 0) * 100).toFixed(0)}%</div>
+             <div>${esc(p.reasoning)}</div>
+             <div class="note" style="margin-top:6px">Supporting: ${refs(p.supporting_ids)} · Contradicting: ${refs(p.contradicting_ids)}</div>`
+          : '<div class="note">No preliminary assessment recorded.</div>';
 
         const argumentsHtml = `
-    <div><b>Prosecutor</b> · strength ${Number(pro.severity || 0).toFixed(2)}<ul>${points(pro.points)}</ul><div class="note">Evidence: ${refs(pro.evidence_ids)}</div></div>
-    <div style="margin-top:10px"><b>Defender</b> · strength ${Number(def.severity || 0).toFixed(2)}<ul>${points(def.points)}</ul><div class="note">Evidence: ${refs(def.evidence_ids)}</div></div>`;
+          <div><b>Prosecutor</b> (severity ${(pro.severity || 0).toFixed(2)})<ul>${points(pro.points)}</ul><div class="note">Citations: ${refs(pro.evidence_ids)}</div></div>
+          <div style="margin-top:10px"><b>Defender</b> (severity ${(def.severity || 0).toFixed(2)})<ul>${points(def.points)}</ul><div class="note">Citations: ${refs(def.evidence_ids)}</div></div>`;
 
         const finalJudge = judge
           ? `<div class="verdict ${esc(judge.decision)}">${esc(judge.decision)}</div>
-      <div class="note">Position multiplier × ${esc(judge.multiplier)}</div>
-      <div>${esc(judge.reasoning)}</div>
-      <div class="note" style="margin-top:8px">I am wrong if: ${esc(judge.i_am_wrong_if)}</div>
-      <div class="note">Supporting evidence: ${refs(judge.supporting_ids)}</div>
-      <div class="note">Contradicting evidence: ${refs(judge.contradicting_ids)}</div>`
-          : '<div class="note">No final Judge decision. No BUY proposal was submitted to the court.</div>';
-
-        const evolution =
-          p && judge
-            ? `<b>${esc(p.decision)} → ${esc(judge.decision)}</b><div class="note">${p.decision === judge.decision ? "The final decision matches the preliminary assessment." : "The final decision differs from the preliminary assessment after the arguments."}</div>`
-            : '<div class="note">Decision comparison unavailable for this trial.</div>';
-
-        const evidence = Array.isArray(t.evidence) ? t.evidence : [];
-        const actors = [
-          { name: "Strategist", ids: s.evidence_ids || [] },
-          { name: "Prosecutor", ids: pro.evidence_ids || [] },
-          { name: "Defender", ids: def.evidence_ids || [] },
-          { name: "Blind Judge · supporting", ids: p?.supporting_ids || [] },
-          {
-            name: "Blind Judge · contradicting",
-            ids: p?.contradicting_ids || [],
-          },
-          {
-            name: "Final Judge · supporting",
-            ids: judge?.supporting_ids || [],
-          },
-          {
-            name: "Final Judge · contradicting",
-            ids: judge?.contradicting_ids || [],
-          },
-        ];
-        const known = new Set(evidence.map((item) => String(item.id)));
-        const citedBy = (id) =>
-          actors
-            .filter((a) => a.ids.map(String).includes(id))
-            .map((a) => a.name);
-        const unknown = [
-          ...new Set(
-            actors.flatMap((a) =>
-              a.ids.map(String).filter((id) => !known.has(id)),
-            ),
-          ),
-        ];
-        const citedCount = evidence.filter(
-          (item) => citedBy(String(item.id)).length > 0,
-        ).length;
-        const evidenceRows = evidence
-          .map((item) => {
-            const id = String(item.id);
-            const citations = citedBy(id);
-            return `<div class="journal-ev" data-journal-evidence="${esc(id)}">
-      <b>${esc(id)}</b> [${esc(item.source)}] ${esc(item.finding)}:
-      ${esc(item.value)} — ${esc(item.interpretation)}
-      <span class="tag">${citations.length ? "CITED" : "UNCITED"}</span>
-      <div class="note">Cited by: ${citations.map(esc).join(" · ") || "No agent or Judge cited this evidence."}</div>
-      <div class="note">Timestamp: ${esc(item.timestamp || "Not recorded")}</div>
-    </div>`;
-          })
-          .join("");
-        const auditHtml = `
-    <div class="note">Citation audit: ${evidence.length} evidence records · ${citedCount} cited · ${evidence.length - citedCount} uncited · ${unknown.length} unknown citation IDs.</div>
-    ${unknown.length ? `<div class="neg" style="margin-top:8px">UNKNOWN EVIDENCE IDs: ${unknown.map(esc).join(", ")}</div>` : ""}
-    <div class="note" style="margin-top:8px">Prosecutor and Defender citations apply to their overall arguments, not to individual bullet points.</div>
-    ${evidenceRows || '<div class="note">No evidence records were saved for this trial.</div>'}`;
-
-        const riskHtml = `<b>${risk.approved ? "APPROVED" : "NOT APPROVED"}</b>
-    <div class="note">Quantity: ${esc(risk.quantity ?? 0)}</div>
-    <div class="note">${(risk.reasons || []).map(esc).join(" · ") || "No risk rejection reasons recorded."}</div>`;
+             <div class="note">Multiplier: ×${esc(judge.multiplier)}</div>
+             <div>${esc(judge.reasoning)}</div>
+             <div class="note" style="margin-top:6px"><b>I am wrong if:</b> ${esc(judge.i_am_wrong_if)}</div>`
+          : '<div class="note">No final Judge ruling (no BUY proposal submitted).</div>';
 
         d.innerHTML =
-          section(
-            "1 · TRADE PROPOSAL",
-            `${proposal}<div class="note" style="margin-top:8px">${esc(s.rationale || "No rationale recorded.")}</div><div class="note">Evidence: ${refs(s.evidence_ids)}</div>`,
-          ) +
+          section("1 · TRADE PROPOSAL", `${proposal}<div class="note" style="margin-top:6px">${esc(s.rationale)}</div>`) +
           section("2 · BLIND JUDGE · STAGE 1", preliminary) +
-          section("3 · ADVERSARIAL ARGUMENTS", argumentsHtml) +
-          section("4 · FINAL JUDGE · STAGE 2", finalJudge) +
-          section("5 · DECISION EVOLUTION", evolution) +
-          section("6 · RISK ENGINE", riskHtml) +
-          section("7 · EVIDENCE TRACEABILITY AUDIT", auditHtml);
+          section("3 · ADVERSARIAL COUNSEL", argumentsHtml) +
+          section("4 · FINAL RULING · STAGE 2", finalJudge) +
+          section("5 · RISK ENGINE EVALUATION", `<b>${risk.approved ? "APPROVED" : "BLOCKED"}</b> ${risk.quantity ? `· ${risk.quantity} shares` : ""} <div class="note">${(risk.reasons || []).join("; ")}</div>`);
       });
 
       function evChips(ids) {
-        return (ids || [])
-          .map((i) => `<span class="chip" data-ev="${esc(i)}">${esc(i)}</span>`)
-          .join("");
+        return (ids || []).map((i) => `<span class="chip" data-ev="${esc(i)}">${esc(i)}</span>`).join("");
       }
+
       function setAgent(id, html) {
         const a = $(id);
         a.querySelector(".body").innerHTML = html;
         a.classList.add("on");
       }
+
       function resetCourt() {
-        document
-          .querySelectorAll(".agent")
-          .forEach((a) => a.classList.remove("on"));
+        document.querySelectorAll(".agent").forEach((a) => a.classList.remove("on"));
       }
+
+      // Display live animated trial progression
       async function showTrial(r) {
         const t = r.transcript;
         resetCourt();
         $("#outcome").style.display = "none";
+        $("#trialStatusBadge").textContent = "Court in session…";
 
         const s = t.strategist;
         setAgent(
           "#a-s",
           s.action === "BUY"
-            ? `<b>${esc(s.strategy)}</b> long ${esc(s.symbol)}<br>Entry ${inr(s.entry)} · Stop ${inr(s.stop)} · Target ${inr(s.target)}<div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`
-            : `<b>NO TRADE</b><div class="note">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`,
+            ? `<b>${esc(s.strategy)}</b> long ${esc(s.symbol)}<br>Entry ${inr(s.entry)} · Stop ${inr(s.stop)} · Target ${inr(s.target)}<div class="note" style="margin:4px 0">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`
+            : `<b>NO TRADE</b><div class="note" style="margin:4px 0">${esc(s.rationale)}</div>${evChips(s.evidence_ids)}`,
         );
 
-        await sleep(500);
+        await sleep(400);
 
         const p = t.preliminary_assessment;
         if (p) {
           const confidence = Number(p.confidence);
           setAgent(
             "#a-pj",
-            `
-      <div class="verdict ${esc(p.decision)}">${esc(p.decision)}</div>
-      <div class="note">Blind assessment · Confidence ${Number.isFinite(confidence) ? (confidence * 100).toFixed(0) + "%" : "N/A"}</div>
-      <div>${esc(p.reasoning)}</div>
-      <div class="note">Supporting evidence</div>${evChips(p.supporting_ids)}
-      <div class="note">Contradicting evidence</div>${evChips(p.contradicting_ids)}
-    `,
+            `<div class="verdict ${esc(p.decision)}">${esc(p.decision)}</div>
+             <div class="note">Preliminary confidence ${(confidence * 100).toFixed(0)}%</div>
+             <div style="font-size:12px;margin:4px 0">${esc(p.reasoning)}</div>
+             <div>${evChips(p.supporting_ids)}</div>`,
           );
         } else {
-          setAgent(
-            "#a-pj",
-            `<div class="note">No preliminary assessment recorded for this trial.</div>`,
-          );
+          setAgent("#a-pj", `<div class="note">Stage 1 skipped (no proposal).</div>`);
         }
 
-        await sleep(500);
+        await sleep(400);
 
+        const proSev = t.prosecutor.severity || 0;
         setAgent(
           "#a-p",
-          `<ul>${t.prosecutor.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>${evChips(t.prosecutor.evidence_ids)}<div class="note">strength ${t.prosecutor.severity.toFixed(2)}</div>`,
+          `<div class="severity-bar"><div class="severity-fill" style="width:${proSev * 100}%;background:var(--red)"></div></div>
+           <ul>${t.prosecutor.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+           <div>${evChips(t.prosecutor.evidence_ids)}</div>`,
         );
 
-        await sleep(500);
+        await sleep(400);
 
+        const defSev = t.defender.severity || 0;
         setAgent(
           "#a-d",
-          `<ul>${t.defender.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>${evChips(t.defender.evidence_ids)}<div class="note">strength ${t.defender.severity.toFixed(2)}</div>`,
+          `<div class="severity-bar"><div class="severity-fill" style="width:${defSev * 100}%;background:var(--green)"></div></div>
+           <ul>${t.defender.points.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>
+           <div>${evChips(t.defender.evidence_ids)}</div>`,
         );
 
-        await sleep(500);
+        await sleep(400);
 
         if (t.judge) {
           const j = t.judge;
           setAgent(
             "#a-j",
-            `<div class="verdict ${esc(j.decision)}">${esc(j.decision)}</div><div class="note">size × ${esc(j.multiplier)}</div><div>${esc(j.reasoning)}</div><div class="note">I am wrong if ${esc(j.i_am_wrong_if)}</div>`,
+            `<div class="verdict ${esc(j.decision)}">${esc(j.decision)}</div>
+             <div class="note">Size Multiplier ×${esc(j.multiplier)}</div>
+             <div style="margin:4px 0">${esc(j.reasoning)}</div>
+             <div class="note" style="margin-top:6px"><b>I am wrong if:</b> ${esc(j.i_am_wrong_if)}</div>`,
           );
         } else {
-          setAgent(
-            "#a-j",
-            `<div class="verdict">NO CASE</div><div class="note">No proposal to judge.</div>`,
-          );
+          setAgent("#a-j", `<div class="verdict">NO CASE</div><div class="note">No BUY proposal submitted.</div>`);
         }
 
-        await sleep(400);
+        await sleep(350);
 
         const o = $("#outcome");
         o.style.display = "block";
         const rk = t.risk;
 
-        const comparison =
-          p && t.judge
-            ? `<div class="note" style="margin-top:6px"><b>Judge evolution:</b> Preliminary ${esc(p.decision)} → Final ${esc(t.judge.decision)} · ${p.decision === t.judge.decision ? "Decision unchanged" : "Decision changed after adversarial arguments"}</div>`
-            : "";
+        o.innerHTML = `
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+            <div>
+              <b>Risk Engine:</b> ${rk.approved ? `Approved ${rk.quantity} shares` : `No entry permitted`} ${rk.reasons.length ? "— " + esc(rk.reasons.join("; ")) : ""}
+            </div>
+            <div>
+              <span class="tag ${esc(r.outcome)}">${esc(r.outcome)}</span> · <b>Process Score: ${r.process_score}/100</b>
+            </div>
+          </div>
+          <div class="note" style="margin-top:8px">${esc(r.summary)}</div>
+          <div class="note" style="margin-top:6px">
+            Agents backend: ${Object.entries(t.agent_backends || {}).map(([k, v]) => `${esc(k)}=<b>${esc(v)}</b>`).join(" · ")}
+          </div>
+          <div class="note">
+            Score parts: ${Object.entries(t.process_breakdown || {}).map(([k, v]) => `${esc(k.replace(/_/g, " "))} ${v}/20`).join(" · ")}
+          </div>
+          ${t.memory ? `<div class="note">Cross-session Memory: ${t.memory.closed} past trades in ${esc(r.symbol)} (${t.memory.targets} targets / ${t.memory.stops} stops)</div>` : ""}
+        `;
 
-        o.innerHTML = `<b>Risk engine (plain code):</b> ${rk.approved ? `approved ${rk.quantity} shares` : `no entry`} ${rk.reasons.length ? "— " + esc(rk.reasons.join("; ")) : ""}<br><b>Outcome:</b> <span class="tag">${esc(r.outcome)}</span> · process score ${r.process_score}/100<div class="note" style="margin-top:4px">${esc(r.summary)}</div>
-    ${comparison}
-    <div class="note" style="margin-top:6px">Agents: ${Object.entries(
-      t.agent_backends || {},
-    )
-      .map(([k, v]) => `${esc(k)}=<b>${esc(v)}</b>`)
-      .join(" · ")}</div>
-    <div class="note">Process score parts: ${Object.entries(
-      t.process_breakdown || {},
-    )
-      .map(([k, v]) => `${esc(k.replace(/_/g, " "))} ${v}/20`)
-      .join(" · ")}</div>
-    ${t.memory ? `<div class="note">Memory: ${t.memory.closed} closed trades in ${esc(r.symbol)} (${t.memory.targets} target / ${t.memory.stops} stop)</div>` : ""}`;
-
-        $("#ev").innerHTML = t.evidence
+        $("#ev").innerHTML = (t.evidence || [])
           .map(
             (e) =>
-              `<div class="ev" id="ev-${esc(e.id)}"><b>${esc(e.id)}</b> [${esc(e.source)}] ${esc(e.finding)}: ${esc(e.value)} — ${esc(e.interpretation)}</div>`,
+              `<div class="ev" id="ev-${esc(e.id)}"><b>${esc(e.id)}</b> [${esc(e.source)}] <b>${esc(e.finding)}:</b> ${esc(e.value)} — <i>${esc(e.interpretation)}</i></div>`,
           )
           .join("");
+
+        $("#trialStatusBadge").textContent = `Verdict: ${r.outcome}`;
       }
+
+      // Evidence chip click to highlight
       document.addEventListener("click", (e) => {
         const c = e.target.closest(".chip");
         if (!c) return;
 
-        document
-          .querySelectorAll(".ev.hl,.journal-ev.hl")
-          .forEach((x) => x.classList.remove("hl"));
+        document.querySelectorAll(".ev.hl, .journal-ev.hl").forEach((x) => x.classList.remove("hl"));
 
         const journal = c.closest(".jd");
         let target = null;
-
         if (journal) {
-          target =
-            [...journal.querySelectorAll(".journal-ev")].find(
-              (x) => x.dataset.journalEvidence === c.dataset.ev,
-            ) || null;
+          target = [...journal.querySelectorAll(".journal-ev")].find((x) => x.dataset.journalEvidence === c.dataset.ev);
         } else {
           target = document.getElementById("ev-" + c.dataset.ev);
         }
@@ -913,14 +1396,14 @@
       });
 
       async function runTrial(sym) {
-        $("#trialNote").innerHTML =
-          '<span class="thinking dots">Trial in progress</span>';
+        $("#trialNote").innerHTML = '<span class="thinking dots">Deliberating</span>';
         const r = await post("/api/trial/start", { symbol: sym });
         $("#trialNote").textContent = "";
         await showTrial(r);
         await refresh();
         return r;
       }
+
       $("#btnTrial").onclick = async (e) => {
         e.target.disabled = true;
         try {
@@ -931,11 +1414,13 @@
         }
         e.target.disabled = false;
       };
+
       $("#btnAll").onclick = async (e) => {
         e.target.disabled = true;
         try {
           for (const o of $("#sym").options) {
             $("#sym").value = o.value;
+            $("#trialSelectedSym").textContent = o.value;
             await runTrial(o.value);
           }
           await loadBacktest();
@@ -944,23 +1429,18 @@
         }
         e.target.disabled = false;
       };
+
       $("#sym").onchange = async () => {
-  try {
-    await loadBacktest();
-  } catch (x) {
-    $("#btSrc").textContent = "Backtest error: " + x.message;
-  }
-};
+        selectStock($("#sym").value);
+      };
+
       $("#btnAngel").onclick = async (e) => {
         e.target.disabled = true;
         e.target.textContent = "Connecting…";
         try {
           const r = await post("/api/auth/angelone/connect");
-          $("#streamStatus").textContent =
-            "Angel One session connected; waiting for first market tick";
-          alert(
-            "Angel One authentication accepted. Stream status: " + r.stream,
-          );
+          $("#streamStatus").textContent = "Angel One session connected";
+          alert("Angel One connected. Stream status: " + r.stream);
         } catch (x) {
           alert("Angel One connection failed: " + x.message);
         } finally {
@@ -968,117 +1448,131 @@
           e.target.textContent = "Connect Angel One";
         }
       };
+
       $("#btnCheck").onclick = async () => {
-  try {
-    await post("/api/system/checkin");
-    await refresh();
-    alert("Check-in successful.");
-  } catch (x) {
-    alert("Check-in failed: " + x.message);
-  }
-};
+        try {
+          await post("/api/system/checkin");
+          await refresh();
+          alert("Check-in recorded. 24-hour dead-man switch timer reset.");
+        } catch (x) {
+          alert("Check-in failed: " + x.message);
+        }
+      };
 
-$("#btnResume").onclick = async () => {
-  try {
-    await post("/api/system/resume");
-    await refresh();
-    alert("System resume request completed.");
-  } catch (x) {
-    alert("Resume failed: " + x.message);
-  }
-};
+      $("#btnResume").onclick = async () => {
+        try {
+          await post("/api/system/resume");
+          await refresh();
+          alert("System resumed. Automated entries permitted.");
+        } catch (x) {
+          alert("Resume failed: " + x.message);
+        }
+      };
 
-$("#btnStop").onclick = async () => {
-  if (
-    !confirm(
-      "STOP TRADING?\nThis halts the agent, cancels pending paper orders and closes all paper positions.",
-    )
-  )
-    return;
-
-  try {
-    const r = await post("/api/system/stop");
-    await refresh();
-
-    if (!r.all_positions_flattened) {
-      alert(
-        "Halted, but some paper positions could not be closed (no price). The system stays halted.",
-      );
-    } else {
-      alert("System halted. All paper positions flattened.");
-    }
-  } catch (x) {
-    alert("Stop request failed: " + x.message);
-  }
-};
+      $("#btnStop").onclick = async () => {
+        if (!confirm("STOP TRADING?\nThis will halt the agent, cancel all pending orders and close all paper positions.")) return;
+        try {
+          const r = await post("/api/system/stop");
+          await refresh();
+          if (!r.all_positions_flattened) {
+            alert("Trading halted. Some positions could not be closed due to unavailable price feeds.");
+          } else {
+            alert("Trading halted. All paper positions flattened.");
+          }
+        } catch (x) {
+          alert("Stop failed: " + x.message);
+        }
+      };
 
       const COL = {
-        momentum: "#c9a24b",
-        ma_crossover: "#4fb3bf",
-        buy_and_hold: "#8b96ab",
+        momentum: "#f59e0b",
+        ma_crossover: "#06b6d4",
+        buy_and_hold: "#64748b",
       };
+
+      // Load walk-forward backtest data
       async function loadBacktest() {
         const sym = $("#sym").value;
         if (!sym) return;
-        const b = await post(
-          "/api/backtest/run?symbol=" + encodeURIComponent(sym),
-        );
-        $("#btSrc").textContent =
-          "Data: " +
-          b.data_source +
-          " · cost/side " +
-          b.assumptions.cost_per_side_bps +
-          " bps · execution " +
-          b.assumptions.execution;
-        const names = Object.keys(b.equity_curves),
-          all = names.flatMap((n) => b.equity_curves[n]);
+        $("#btSelected").textContent = `${sym} Walk-Forward OOS`;
+        const b = await post("/api/backtest/run?symbol=" + encodeURIComponent(sym));
+        $("#btSrc").textContent = `· Data: ${b.data_source} · Cost: ${b.assumptions.cost_per_side_bps} bps/side (${b.assumptions.execution})`;
+
+        const names = Object.keys(b.equity_curves);
+        const all = names.flatMap((n) => b.equity_curves[n]);
         const lo = Math.min(...all),
           hi = Math.max(...all),
           W = 700,
           H = 260,
           P = 34,
           n = b.dates.length;
-        const X = (i) => P + (i * (W - P - 8)) / (n - 1),
-          Y = (v) => H - P - ((v - lo) * (H - 2 * P)) / (hi - lo || 1);
+
+        const X = (i) => P + (i * (W - P - 8)) / (n - 1);
+        const Y = (v) => H - P - ((v - lo) * (H - 2 * P)) / (hi - lo || 1);
+
         let g = "";
         for (let k = 0; k <= 4; k++) {
-          const v = lo + ((hi - lo) * k) / 4,
-            y = Y(v);
-          g += `<line x1="${P}" x2="${W - 8}" y1="${y}" y2="${y}" stroke="#26324a"/><text x="2" y="${y + 4}" fill="#8b96ab" font-size="10">${(v / 1000).toFixed(0)}k</text>`;
+          const v = lo + ((hi - lo) * k) / 4;
+          const y = Y(v);
+          g += `<line x1="${P}" x2="${W - 8}" y1="${y}" y2="${y}" stroke="#243048"/><text x="2" y="${y + 4}" fill="#8190aa" font-size="10">${(v / 1000).toFixed(0)}k</text>`;
         }
-        g += `<text x="${P}" y="${H - 10}" fill="#8b96ab" font-size="10">${esc(b.dates[0])}</text><text x="${W - 90}" y="${H - 10}" fill="#8b96ab" font-size="10">${esc(b.dates[n - 1])}</text>`;
+        g += `<text x="${P}" y="${H - 10}" fill="#8190aa" font-size="10">${esc(b.dates[0])}</text><text x="${W - 90}" y="${H - 10}" fill="#8190aa" font-size="10">${esc(b.dates[n - 1])}</text>`;
+
         names.forEach((k) => {
-          g += `<polyline fill="none" stroke="${COL[k]}" stroke-width="${k === "buy_and_hold" ? 1.6 : 2.2}" ${k === "buy_and_hold" ? 'stroke-dasharray="5 4"' : ""} points="${b.equity_curves[k].map((v, i) => X(i) + "," + Y(v)).join(" ")}"/>`;
+          g += `<polyline fill="none" stroke="${COL[k]}" stroke-width="${k === "buy_and_hold" ? 1.6 : 2.4}" ${k === "buy_and_hold" ? 'stroke-dasharray="5 4"' : ""} points="${b.equity_curves[k].map((v, i) => X(i) + "," + Y(v)).join(" ")}"/>`;
         });
+
         $("#chart").innerHTML = g;
         $("#legend").innerHTML = names
           .map(
             (k) =>
-              `<span><i style="background:${COL[k]}"></i>${k.replace(/_/g, " ")}${b.passes_gate[k] ? " ✓ passes gate" : ""}</span>`,
+              `<span><i style="background:${COL[k]}"></i>${k.replace(/_/g, " ")}${b.passes_gate[k] ? " ✓ <b>passes gate</b>" : ""}</span>`,
           )
           .join("");
+
         const f = (x) => (x * 100).toFixed(1) + "%";
         $("#btTable").innerHTML =
-          `<tr><th>Strategy</th><th>Return</th><th>Max DD</th><th>Sharpe</th><th>Win rate</th><th>Trades</th></tr>` +
+          `<thead><tr><th>Strategy</th><th>Return</th><th>Max DD</th><th>Sharpe</th><th>Win Rate</th><th>Trades</th></tr></thead><tbody>` +
           names
             .map((k) => {
               const m = b.metrics[k];
-              return `<tr><td>${k.replace(/_/g, " ")}</td><td class="${cls(m.total_return)}">${f(m.total_return)}</td><td class="neg">${f(m.max_drawdown)}</td><td>${m.sharpe.toFixed(2)}</td><td>${f(m.win_rate)}</td><td>${m.trades}</td></tr>`;
+              return `<tr>
+                <td><b>${k.replace(/_/g, " ")}</b></td>
+                <td class="${cls(m.total_return)}">${f(m.total_return)}</td>
+                <td class="neg">${f(m.max_drawdown)}</td>
+                <td><b>${m.sharpe.toFixed(2)}</b></td>
+                <td>${f(m.win_rate)}</td>
+                <td>${m.trades}</td>
+              </tr>`;
             })
-            .join("");
+            .join("") +
+          `</tbody>`;
       }
+
+      // Initialize application
       (async () => {
         try {
           const w = await api("/api/watchlist");
-          $("#sym").innerHTML = w
-            .map((s) => `<option>${esc(s)}</option>`)
-            .join("");
+          $("#sym").innerHTML = w.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+          renderWatchlistBar(w);
           await refresh();
           await loadBacktest();
           connectMarketStream();
+
+          // Background auto-sync every 3 seconds for stops/targets and order state
+          setInterval(async () => {
+            try {
+              const pf = await api("/api/portfolio");
+              currentCash = Number(pf.cash);
+              currentRealizedPnl = Number(pf.realized_pnl);
+              currentPositions = pf.positions || [];
+              updatePositionsAndUnrealized();
+            } catch {}
+          }, 3000);
         } catch (x) {
-          $("#banner").style.display = "block";
-          $("#banner").textContent = "Cannot reach backend: " + x.message;
+          $("#banner").style.display = "flex";
+          $("#banner").className = "banner red";
+          $("#banner").textContent = "Cannot connect to backend: " + x.message;
         }
       })();
     </script>

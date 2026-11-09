@@ -277,3 +277,15 @@ class PaperBroker:
             a = s.get(Account, 1)
             a.halted, a.halt_reason = False, ""
             self.log("RESUME", detail="human resumed", now=now, s=s)
+
+    def replenish(self, amount: Decimal = Decimal("100000"), now: datetime | None = None) -> Decimal:
+        """Add virtual cash to the paper account and adjust sod baseline so daily loss lock is released if halted."""
+        with self.Session.begin() as s:
+            a = s.get(Account, 1)
+            a.cash += amount
+            a.start_of_day_equity += amount
+            if a.halted and a.halt_reason.startswith("Daily loss limit"):
+                a.halted, a.halt_reason = False, ""
+                self.log("DAILY_LOCK_RELEASED", detail="replenished capital", now=now, s=s)
+            self.log("REPLENISH", detail=f"added {amount} virtual cash; cash is now {a.cash}", now=now or datetime.utcnow(), s=s)
+            return a.cash

@@ -24,7 +24,8 @@ from .market.demo_data import WATCHLIST, demo_candles
 from .market.indicators import indicator_frame
 from .market.freshness import assess
 from .market.news import get_news
-from .market.provider import AngelOneProvider, DemoProvider, ProviderError
+from .market.provider import (AngelOneProvider, DemoProvider, LiveMarketProvider,
+                            ProviderError, create_provider)
 from .market.stream import MarketStreamHub
 from .risk.engine import RiskEngine, RiskLimits, is_market_open
 from .trading.monitor import monitor_tick
@@ -32,16 +33,32 @@ from .trading.paper_broker import PaperBroker
 
 settings = load_settings()  # raises if the env tries to enable live trading
 log = logging.getLogger("verdict")
-broker = PaperBroker(settings.database_url, settings.initial_capital, settings.slippage_bps)
+
+# Separate database files for DEMO and LIVE paper wallets so trades/cash do not cross over
+if ":memory:" in settings.database_url:
+    demo_db_url = "sqlite:///:memory:"
+    live_db_url = "sqlite:///:memory:"
+elif settings.database_url.endswith(".db"):
+    demo_db_url = settings.database_url.replace(".db", "_demo.db")
+    live_db_url = settings.database_url.replace(".db", "_live.db")
+else:
+    demo_db_url = f"{settings.database_url}_demo"
+    live_db_url = f"{settings.database_url}_live"
+
+broker_demo = PaperBroker(demo_db_url, settings.initial_capital, settings.slippage_bps)
+broker_live = PaperBroker(live_db_url, settings.initial_capital, settings.slippage_bps)
+
 risk = RiskEngine(RiskLimits(settings.risk_per_trade, settings.daily_loss_limit, settings.max_open_positions,
                              settings.max_stock_exposure))
-provider = DemoProvider() if settings.market_data_mode == "demo" else AngelOneProvider()
+current_mode = settings.market_data_mode.lower()
+broker = broker_live if current_mode == "live" else broker_demo
+provider = create_provider(current_mode)
 stream_hub = MarketStreamHub()
 # Latest market-data ticks are the single source used by portfolio valuation and exit monitoring.
-# Values are updated by DEMO ticks or the authenticated Angel One WebSocket callback.
+# Values are updated by DEMO ticks or the live data loop / authenticated Angel One WebSocket callback.
 latest_prices: dict[str, Decimal] = {}
 latest_price_at: dict[str, datetime] = {}
-MAX_TICK_AGE = timedelta(seconds=15)
+MAX_TICK_AGE = timedelta(seconds=30)
 _tick_lock: asyncio.Lock | None = None
 
 
@@ -61,23 +78,63 @@ async def _run_market_monitor():
         await asyncio.to_thread(monitor_tick, broker, risk, prices(), now_utc())
 
 
-async def _demo_stream_loop():
-    """Publish clearly labelled synthetic ticks in DEMO mode for dashboard verification."""
+async def _market_stream_loop():
+    """Stream market ticks continuously in both DEMO and LIVE modes."""
     phase = 0.0
     rng = random.Random(42)
     while True:
-        phase += 0.35
-        for symbol in WATCHLIST:
-            base = float(provider.quote(symbol)["price"])
-            # A small deterministic oscillation makes the UI visibly update without implying real prices.
-            price = round(base * (1 + 0.0008 * math.sin(phase + sum(map(ord, symbol)))
-                                  + rng.uniform(-0.00015, 0.00015)), 2)
-            tick = {"symbol": symbol, "price": price, "provider": "DEMO", "freshness": "DEMO"}
-            latest_prices[symbol] = Decimal(str(price))
-            latest_price_at[symbol] = now_utc()
-            await _run_market_monitor()
-            await stream_hub.publish(tick)
-        await asyncio.sleep(1)
+        try:
+            if current_mode == "demo":
+                phase += 0.35
+                for symbol in WATCHLIST:
+                    base = float(provider.quote(symbol)["price"])
+                    price = round(base * (1 + 0.0008 * math.sin(phase + sum(map(ord, symbol)))
+                                          + rng.uniform(-0.00015, 0.00015)), 2)
+                    chg = round(price - base, 2)
+                    chg_pct = round((chg / base) * 100, 2) if base else 0.0
+                    tick = {
+                        "symbol": symbol,
+                        "price": price,
+                        "provider": "DEMO",
+                        "freshness": "DEMO",
+                        "change": chg,
+                        "change_pct": chg_pct,
+                        "high": round(base * 1.01, 2),
+                        "low": round(base * 0.99, 2),
+                    }
+                    latest_prices[symbol] = Decimal(str(price))
+                    latest_price_at[symbol] = now_utc()
+                    await _run_market_monitor()
+                    await stream_hub.publish(tick)
+                await asyncio.sleep(1)
+            elif isinstance(provider, LiveMarketProvider):
+                for symbol in WATCHLIST:
+                    try:
+                        q = await asyncio.to_thread(provider.quote, symbol)
+                        price = Decimal(str(q["price"]))
+                        latest_prices[symbol] = price
+                        latest_price_at[symbol] = now_utc()
+                        tick = {
+                            "symbol": symbol,
+                            "price": float(price),
+                            "provider": "LIVE",
+                            "freshness": "LIVE",
+                            "change": q.get("change", 0.0),
+                            "change_pct": q.get("change_pct", 0.0),
+                            "high": q.get("high"),
+                            "low": q.get("low"),
+                            "prev_close": q.get("prev_close"),
+                        }
+                        await _run_market_monitor()
+                        await stream_hub.publish(tick)
+                    except Exception as e:
+                        log.debug("Live quote fetch error for %s: %s", symbol, e)
+                await asyncio.sleep(3)
+            else:
+                await asyncio.sleep(2)
+        except Exception:
+            log.exception("Stream loop error")
+            await asyncio.sleep(2)
 
 
 async def _monitor_loop():
@@ -91,10 +148,11 @@ async def _monitor_loop():
 
 @asynccontextmanager
 async def lifespan(_app):
-    tasks = [asyncio.create_task(_monitor_loop())]
-    if settings.market_data_mode == "demo":
+    tasks = [asyncio.create_task(_monitor_loop()), asyncio.create_task(_market_stream_loop())]
+    if current_mode == "demo":
         stream_hub.provider_status = "DEMO"
-        tasks.append(asyncio.create_task(_demo_stream_loop()))
+    elif isinstance(provider, LiveMarketProvider):
+        stream_hub.provider_status = "LIVE"
     else:
         stream_hub.provider_status = "DISCONNECTED"
     yield
@@ -170,8 +228,29 @@ def watchlist():
 
 @app.get("/api/health")
 def health():
-    return {"ok": True, "execution_mode": "PAPER", "data_mode": settings.market_data_mode.upper(),
+    return {"ok": True, "execution_mode": "PAPER", "data_mode": current_mode.upper(),
             "market_open": is_market_open(datetime.now(timezone.utc))}
+
+
+class MarketModeRequest(BaseModel):
+    mode: str
+
+
+@app.get("/api/market/mode")
+def get_market_mode():
+    return {"mode": current_mode, "provider": provider.name}
+
+
+@app.post("/api/market/mode")
+def set_market_mode(req: MarketModeRequest):
+    global current_mode, provider
+    m = req.mode.lower().strip()
+    if m not in ("demo", "live"):
+        raise HTTPException(400, "Mode must be 'demo' or 'live'")
+    current_mode = m
+    provider = create_provider(m)
+    stream_hub.provider_status = "DEMO" if m == "demo" else ("LIVE" if isinstance(provider, LiveMarketProvider) else "DISCONNECTED")
+    return {"mode": current_mode, "provider": provider.name}
 
 
 @app.get("/api/market/stream/status")
@@ -211,8 +290,10 @@ def angel_status():
 
 @app.post("/api/auth/angelone/connect")
 def angel_connect():
-    if settings.market_data_mode == "demo":
+    global provider
+    if current_mode == "demo":
         raise HTTPException(400, "Running in DEMO mode; set MARKET_DATA_MODE=live to use Angel One")
+    provider = AngelOneProvider()
     try:
         provider.connect()
         loop = asyncio.get_running_loop()
@@ -225,13 +306,15 @@ def angel_connect():
 
 @app.get("/api/market/historical/{symbol}")
 def historical(symbol: str):
-    df = provider.historical(symbol, "ONE_DAY", None, None)
+    df = provider.historical(symbol, "ONE_DAY", None, None).copy()
+    df.index.name = "index"
     return {"source": df.attrs.get("source"), "candles": df.tail(250).reset_index().astype({"index": str}).to_dict("records")}
 
 
 @app.get("/api/market/indicators/{symbol}")
 def indicators(symbol: str):
-    f = indicator_frame(provider.historical(symbol, "ONE_DAY", None, None)).dropna().tail(1)
+    f = indicator_frame(provider.historical(symbol, "ONE_DAY", None, None)).dropna().tail(1).copy()
+    f.index.name = "index"
     return f.reset_index().astype({"index": str}).to_dict("records")[0]
 
 
@@ -252,7 +335,7 @@ def trial_start(req: TrialRequest):
     p[req.symbol] = Decimal(str(df.close.iloc[-1]))
     return run_trial(req.symbol, df, src, broker, risk, p, now, data_fresh=fresh and all_priced,
                      simulation_mode=req.simulation_mode or src == "DEMO",
-                     news=get_news(req.symbol, settings.market_data_mode), agents=get_agents())
+                     news=get_news(req.symbol, current_mode), agents=get_agents())
 
 
 @app.get("/api/trial/history")
@@ -268,12 +351,32 @@ def trial_get(trial_id: int):
 @app.get("/api/portfolio")
 def portfolio():
     p, a = prices(), broker.account()
-    return {"execution_mode": "PAPER", "cash": a.cash, "equity": broker.equity(p), "realized_pnl": a.realized_pnl,
-            "price_freshness": {x.symbol: ("FRESH" if x.symbol in p else "STALE_OR_UNAVAILABLE")
-                                for x in broker.positions()},
-            "unrealized_pnl": broker.unrealized(p), "halted": a.halted, "halt_reason": a.halt_reason,
-            "positions": [{"symbol": x.symbol, "quantity": x.quantity, "avg_price": x.avg_price, "stop": x.stop,
-                           "target": x.target, "i_am_wrong_if": x.thesis_invalidation} for x in broker.positions()]}
+    pos = broker.positions()
+    return {
+        "execution_mode": "PAPER",
+        "cash": a.cash,
+        "equity": broker.equity(p),
+        "realized_pnl": a.realized_pnl,
+        "price_freshness": {x.symbol: ("FRESH" if x.symbol in p else "STALE_OR_UNAVAILABLE")
+                            for x in pos},
+        "unrealized_pnl": broker.unrealized(p),
+        "halted": a.halted,
+        "halt_reason": a.halt_reason,
+        "positions": [
+            {
+                "symbol": x.symbol,
+                "quantity": x.quantity,
+                "avg_price": x.avg_price,
+                "current_price": p.get(x.symbol, x.avg_price),
+                "unrealized_pnl": (p.get(x.symbol, x.avg_price) - x.avg_price) * x.quantity,
+                "unrealized_pnl_pct": round(float((p.get(x.symbol, x.avg_price) - x.avg_price) / x.avg_price) * 100, 2) if x.avg_price > 0 else 0.0,
+                "stop": x.stop,
+                "target": x.target,
+                "i_am_wrong_if": x.thesis_invalidation,
+            }
+            for x in pos
+        ],
+    }
 
 
 @app.get("/api/orders")
