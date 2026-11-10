@@ -243,14 +243,22 @@ def get_market_mode():
 
 @app.post("/api/market/mode")
 def set_market_mode(req: MarketModeRequest):
-    global current_mode, provider
+    global current_mode, provider, broker
     m = req.mode.lower().strip()
     if m not in ("demo", "live"):
         raise HTTPException(400, "Mode must be 'demo' or 'live'")
+
+    new_provider = create_provider(m)
     current_mode = m
-    provider = create_provider(m)
+    provider = new_provider
+    broker = broker_live if m == "live" else broker_demo
+
+    # Clear cached prices so the newly selected mode cannot reuse stale ticks.
+    latest_prices.clear()
+    latest_price_at.clear()
+
     stream_hub.provider_status = "DEMO" if m == "demo" else ("LIVE" if isinstance(provider, LiveMarketProvider) else "DISCONNECTED")
-    return {"mode": current_mode, "provider": provider.name}
+    return {"mode": current_mode, "provider": provider.name, "execution_mode": "PAPER"}
 
 
 @app.get("/api/market/stream/status")
@@ -376,6 +384,20 @@ def portfolio():
             }
             for x in pos
         ],
+    }
+
+
+@app.post("/api/wallet/reset")
+def reset_wallet():
+    reset_balance = broker.reset_wallet()
+    latest_prices.clear()
+    latest_price_at.clear()
+    return {
+        "success": True,
+        "mode": current_mode.upper(),
+        "execution_mode": "PAPER",
+        "cash": reset_balance,
+        "message": f"{current_mode.upper()} paper wallet reset successfully",
     }
 
 

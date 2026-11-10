@@ -234,10 +234,10 @@
       }
       .watchlist-chips {
         display: flex;
+        flex-wrap: wrap;
         gap: 8px;
-        overflow-x: auto;
+        overflow-x: visible;
         padding-bottom: 4px;
-        scrollbar-width: thin;
       }
       .stock-chip {
         flex: 0 0 auto;
@@ -648,6 +648,83 @@
       .log div {
         margin-bottom: 4px;
       }
+
+      /* Responsive layout: prevent page-level horizontal overflow */
+      html, body {
+        width: 100%;
+        max-width: 100%;
+      }
+
+      main {
+        width: 100%;
+        min-width: 0;
+      }
+
+      main > *,
+      .grid2 > *,
+      .kpis > *,
+      .court-workflow > * {
+        min-width: 0;
+      }
+
+      .grid2 {
+        grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      }
+
+      .wallet-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .wallet-actions button {
+        flex-shrink: 0;
+      }
+
+      .kpis {
+        grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr));
+      }
+
+      .court-workflow {
+        grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+      }
+
+      .card,
+      .watchlist-wrap {
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      svg {
+        max-width: 100%;
+        height: auto;
+      }
+
+      @media (max-width: 700px) {
+        header {
+          padding: 12px 14px;
+        }
+
+        .badges {
+          width: 100%;
+        }
+
+        main {
+          padding: 14px 12px 40px;
+        }
+
+        .card {
+          padding: 12px;
+        }
+
+        .grid2 {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+
     </style>
   </head>
   <body>
@@ -665,9 +742,6 @@
         </button>
         <span class="badge" id="bMkt"><span class="dot"></span> market: …</span>
         <span class="badge" id="bHalt"><span class="dot"></span> status: …</span>
-        <button id="btnAngel" style="display: none" title="Authenticate Angel One SmartAPI session">
-          Connect Angel One
-        </button>
         <button id="btnCheck" title="Dead-man switch: automated entries pause if no human check-in within 24h">
           👤 Check-in
         </button>
@@ -688,6 +762,12 @@
         <div class="watchlist-chips" id="watchlistChips">
           <span class="note">Loading watchlist…</span>
         </div>
+      </section>
+
+      <!-- Wallet Actions -->
+      <section class="wallet-actions">
+        <span class="note">Selected wallet: <b id="walletModeLabel">DEMO</b> · PAPER ONLY</span>
+        <button id="btnResetWallet" class="secondary">↻ Reset Wallet</button>
       </section>
 
       <!-- KPI Summary Cards -->
@@ -1075,17 +1155,18 @@
           api("/api/risk/logs"),
         ]);
 
-        currentDataMode = h.data_mode;
         currentCash = Number(pf.cash);
         currentRealizedPnl = Number(pf.realized_pnl);
         currentHalted = pf.halted;
         currentHaltReason = pf.halt_reason;
         currentPositions = pf.positions || [];
 
+        currentDataMode = h.data_mode;
+
         // Header status badges
         $("#bDataText").textContent = `Data: ${h.data_mode}`;
+        $("#walletModeLabel").textContent = h.data_mode;
         $("#btnMode").className = `btn-mode ${h.data_mode === "LIVE" ? "badge ok" : ""}`;
-        $("#btnAngel").style.display = h.data_mode === "LIVE" ? "" : "none";
 
         $("#bMkt").innerHTML = `<span class="dot ${h.market_open ? "ok" : ""}"></span> market: ${h.market_open ? "OPEN" : "CLOSED"}`;
         $("#bMkt").className = `badge ${h.market_open ? "ok" : ""}`;
@@ -1101,16 +1182,9 @@
           b.style.display = "flex";
           b.innerHTML = `<span>⚠️ <b>Trading Halted:</b> ${esc(pf.halt_reason || "Kill switch engaged")}. New entries are locked.</span>
                          <button onclick="document.getElementById('btnResume').click()" class="btn-mini">Resume System</button>`;
-        } else if (h.data_mode === "DEMO") {
-          b.className = "banner amber";
-          b.style.display = "flex";
-          b.innerHTML = `<span>ℹ️ <b>DEMO MODE:</b> Using simulated prices &amp; headlines. Switch to <b>LIVE</b> for real-time NSE market data.</span>
-                         <button onclick="toggleMarketMode()" class="btn-mini primary">Switch to LIVE Data ⚡</button>`;
         } else {
-          b.className = "banner green";
-          b.style.display = "flex";
-          b.innerHTML = `<span>⚡ <b>LIVE MODE:</b> Connected to real-world National Stock Exchange of India (NSE) market data feeds.</span>
-                         <button onclick="toggleMarketMode()" class="btn-mini">Switch to DEMO</button>`;
+          b.style.display = "none";
+          b.innerHTML = "";
         }
 
         $("#posCountBadge").textContent = `${currentPositions.length} / 5 Active`;
@@ -1190,6 +1264,28 @@
         }
       }
       $("#btnMode").onclick = toggleMarketMode;
+
+      $("#btnResetWallet").onclick = async () => {
+        const mode = currentDataMode;
+        const confirmed = confirm(
+          `RESET ${mode} PAPER WALLET?\n\nThis permanently clears all ${mode} positions, orders, P&L, risk logs and journal entries, and restores the initial capital.\n\nThe other wallet will remain unchanged.`
+        );
+        if (!confirmed) return;
+
+        const button = $("#btnResetWallet");
+        button.disabled = true;
+        try {
+          const result = await post("/api/wallet/reset", {});
+          latestTicks.clear();
+          await refresh();
+          await loadBacktest();
+          alert(`${result.mode} paper wallet reset successfully. Balance: ${inr(result.cash)}`);
+        } catch (e) {
+          alert("Wallet reset failed: " + e.message);
+        } finally {
+          button.disabled = false;
+        }
+      };
 
       // Expand journal entries
       $("#journal").addEventListener("click", async (e) => {
@@ -1432,21 +1528,6 @@
 
       $("#sym").onchange = async () => {
         selectStock($("#sym").value);
-      };
-
-      $("#btnAngel").onclick = async (e) => {
-        e.target.disabled = true;
-        e.target.textContent = "Connecting…";
-        try {
-          const r = await post("/api/auth/angelone/connect");
-          $("#streamStatus").textContent = "Angel One session connected";
-          alert("Angel One connected. Stream status: " + r.stream);
-        } catch (x) {
-          alert("Angel One connection failed: " + x.message);
-        } finally {
-          e.target.disabled = false;
-          e.target.textContent = "Connect Angel One";
-        }
       };
 
       $("#btnCheck").onclick = async () => {

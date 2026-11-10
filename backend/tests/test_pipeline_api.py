@@ -190,12 +190,23 @@ def test_api_flow_and_kill_switch(client):
 
     client.post("/api/system/checkin")
 
-    for sym in WATCHLIST:
-        client.post("/api/trial/start", json={"symbol": sym})
+    trial_results = [
+        client.post("/api/trial/start", json={"symbol": sym}).json()
+        for sym in WATCHLIST
+    ]
 
     pf = client.get("/api/portfolio").json()
     assert pf["execution_mode"] == "PAPER"
-    assert len(client.get("/api/journal").json()) == len(WATCHLIST)
+
+    executed_count = sum(
+        result["outcome"] == "EXECUTED" for result in trial_results
+    )
+    journal_entries = client.get("/api/journal").json()
+    assert len(journal_entries) == executed_count
+    assert all(result["trial_id"] is not None for result in trial_results
+               if result["outcome"] == "EXECUTED")
+    assert all(result["trial_id"] is None for result in trial_results
+               if result["outcome"] != "EXECUTED")
 
     # Seed fresh stream ticks so the kill switch has valid
     # executable paper prices to flatten at.
@@ -344,3 +355,88 @@ def test_pipeline_voids_trial_when_preliminary_judge_cites_unknown_evidence():
         (p.symbol, p.quantity, p.avg_price)
         for p in broker.positions()
     ] == positions_before
+
+
+def test_demo_live_wallets_are_isolated_and_reset_only_selected_mode(client):
+    import app.main as m
+    from app.database.models import Account, Position, Order, RiskLog
+
+    # Seed independent DEMO and LIVE wallets.
+    for broker, cash, symbol, order_id in (
+        (m.broker_demo, D("90000"), "RELIANCE", "demo-test-order"),
+        (m.broker_live, D("80000"), "TCS", "live-test-order"),
+    ):
+        with broker.Session.begin() as session:
+            account = session.get(Account, 1)
+            account.cash = cash
+            account.realized_pnl = D("500")
+
+            session.add(Position(
+                symbol=symbol,
+                quantity=2,
+                avg_price=D("1000"),
+                stop=D("950"),
+            ))
+            session.add(Order(
+                client_order_id=order_id,
+                execution_mode="PAPER",
+                symbol=symbol,
+                side="BUY",
+                order_type="MARKET",
+                quantity=2,
+                reference_price=D("1000"),
+                status="FILLED",
+                created_at=NOW,
+            ))
+            session.add(RiskLog(
+                at=NOW,
+                event="TEST_EVENT",
+                symbol=symbol,
+                detail="Isolation test",
+            ))
+            session.add(JournalEntry(
+                at=NOW,
+                symbol=symbol,
+                outcome="NO_TRADE",
+                summary="Isolation test",
+                transcript_json="{}",
+                process_score=50,
+            ))
+
+    # Switching to LIVE must select the LIVE wallet.
+    response = client.post("/api/market/mode", json={"mode": "live"})
+    assert response.status_code == 200
+    assert response.json()["execution_mode"] == "PAPER"
+    assert client.get("/api/portfolio").json()["cash"] == D("80000")
+
+    # Reset must clear only the selected LIVE wallet.
+    response = client.post("/api/wallet/reset")
+    assert response.status_code == 200
+    assert response.json()["mode"] == "LIVE"
+    assert response.json()["execution_mode"] == "PAPER"
+
+    assert m.broker_live.positions() == []
+    assert m.broker_live.orders() == []
+
+    with m.broker_live.Session() as session:
+        assert session.query(RiskLog).count() == 0
+        assert session.query(JournalEntry).count() == 0
+        live_account = session.get(Account, 1)
+        assert live_account.cash == m.settings.initial_capital
+        assert live_account.realized_pnl == D("0")
+
+    # DEMO wallet and its history must remain untouched.
+    assert len(m.broker_demo.positions()) == 1
+    assert len(m.broker_demo.orders()) == 1
+
+    with m.broker_demo.Session() as session:
+        assert session.query(RiskLog).count() == 1
+        assert session.query(JournalEntry).count() == 1
+        demo_account = session.get(Account, 1)
+        assert demo_account.cash == D("90000")
+        assert demo_account.realized_pnl == D("500")
+
+    # Switching back to DEMO must still show its original wallet.
+    response = client.post("/api/market/mode", json={"mode": "demo"})
+    assert response.status_code == 200
+    assert client.get("/api/portfolio").json()["cash"] == D("90000")

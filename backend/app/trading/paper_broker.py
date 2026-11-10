@@ -12,9 +12,9 @@ import uuid
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
-from ..database.models import Account, Order, Position, RiskLog, make_session_factory
+from ..database.models import Account, JournalEntry, Order, Position, RiskLog, make_session_factory
 from ..timeutil import ist_date
 
 Q = Decimal("0.01")
@@ -42,11 +42,33 @@ class PaperBroker:
     def __init__(self, db_url: str = "sqlite:///:memory:", initial_capital: Decimal = Decimal("100000"),
                  slippage_bps: Decimal = Decimal("5")):
         self.Session = make_session_factory(db_url)
+        self.initial_capital = Decimal(initial_capital)
         self.slip = slippage_bps / Decimal(10000)
         with self.Session.begin() as s:
             if s.get(Account, 1) is None:
                 s.add(Account(id=1, cash=initial_capital, initial_capital=initial_capital,
                               start_of_day_equity=initial_capital))
+
+
+    def reset_wallet(self) -> Decimal:
+        """Reset this paper wallet and its history without affecting other broker databases."""
+        with self.Session.begin() as s:
+            s.execute(delete(Position))
+            s.execute(delete(Order))
+            s.execute(delete(RiskLog))
+            s.execute(delete(JournalEntry))
+
+            account = s.get(Account, 1)
+            account.cash = self.initial_capital
+            account.initial_capital = self.initial_capital
+            account.start_of_day_equity = self.initial_capital
+            account.realized_pnl = Decimal(0)
+            account.halted = False
+            account.halt_reason = ""
+            account.last_checkin = None
+            account.sod_date = ""
+
+        return self.initial_capital
 
     # ---------- reads ----------
     def account(self) -> Account:

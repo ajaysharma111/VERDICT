@@ -175,18 +175,20 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
         "order_id": order.id if order else None,
     }
 
-    with broker.Session.begin() as s:
-        j = JournalEntry(
-            at=now,
-            symbol=symbol,
-            outcome=outcome,
-            summary=summary,
-            transcript_json=json.dumps(transcript),
-            process_score=score,
-        )
-        s.add(j)
-        s.flush()
-        trial_id = j.id
+    trial_id = None
+    if outcome == "EXECUTED" and order is not None and order.status == "FILLED":
+        with broker.Session.begin() as s:
+            j = JournalEntry(
+                at=now,
+                symbol=symbol,
+                outcome=outcome,
+                summary=summary,
+                transcript_json=json.dumps(transcript),
+                process_score=score,
+            )
+            s.add(j)
+            s.flush()
+            trial_id = j.id
 
     return {
         "trial_id": trial_id,
