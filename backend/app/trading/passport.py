@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -36,7 +36,7 @@ def create_passport(order, trial: dict) -> dict:
     """Create a deterministic, self-contained audit passport for one simulated fill."""
     snapshot = {
         "schema": "verdict.trade-passport.v1",
-        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "execution_mode": "PAPER",
         "trial": _json_value(trial),
         "order": _json_value({
