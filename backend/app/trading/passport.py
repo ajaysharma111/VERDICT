@@ -6,6 +6,7 @@ signature: an actor able to rewrite both data and digest can recompute it.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from datetime import date, datetime
 from decimal import Decimal
@@ -70,6 +71,6 @@ def verify_passport(passport: dict) -> bool:
         return False
     payload = {key: value for key, value in passport.items() if key != "sha256"}
     try:
-        return hashlib.compare_digest(_digest(payload), supplied)
+        return hmac.compare_digest(_digest(payload), supplied)
     except (TypeError, ValueError):
         return False
