@@ -4,6 +4,7 @@ import asyncio
 import logging
 import math
 import random
+import sqlite3
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -53,6 +54,37 @@ risk = RiskEngine(RiskLimits(settings.risk_per_trade, settings.daily_loss_limit,
                              settings.max_stock_exposure))
 current_mode = settings.market_data_mode.lower()
 broker = broker_live if current_mode == "live" else broker_demo
+
+# Historical database: read-only; never used by the active paper broker.
+legacy_db_path = None
+if settings.database_url.startswith("sqlite:///") and ":memory:" not in settings.database_url:
+    legacy_db_path = Path(settings.database_url[len("sqlite:///"):]).resolve()
+
+
+def read_legacy_journal_entry(entry_id=None):
+    """Read historical journal data without creating or modifying its database."""
+    if legacy_db_path is None or not legacy_db_path.is_file():
+        return None if entry_id is not None else []
+
+    uri = legacy_db_path.as_uri() + "?mode=ro"
+    try:
+        with sqlite3.connect(uri, uri=True) as conn:
+            conn.row_factory = sqlite3.Row
+            if entry_id is None:
+                rows = conn.execute(
+                    """SELECT id, at, symbol, outcome, summary, process_score
+                       FROM trading_journal ORDER BY id DESC"""
+                ).fetchall()
+                return [dict(row) for row in rows]
+            return conn.execute(
+                """SELECT id, at, symbol, outcome, summary,
+                          transcript_json, process_score
+                   FROM trading_journal WHERE id = ?""",
+                (entry_id,),
+            ).fetchone()
+    except sqlite3.Error:
+        log.exception("Could not read legacy journal database")
+        raise HTTPException(500, "Historical journal could not be read")
 provider = create_provider(current_mode)
 stream_hub = MarketStreamHub()
 # Latest market-data ticks are the single source used by portfolio valuation and exit monitoring.
@@ -410,31 +442,66 @@ def orders():
 @app.get("/api/journal")
 def journal():
     with broker.Session() as s:
-        return [{"id": j.id, "at": j.at, "symbol": j.symbol, "outcome": j.outcome, "summary": j.summary,
-                 "process_score": j.process_score} for j in s.scalars(select(JournalEntry).order_by(JournalEntry.id.desc()))]
+        active = [
+            {
+                "id": j.id, "at": j.at, "symbol": j.symbol,
+                "outcome": j.outcome, "summary": j.summary,
+                "process_score": j.process_score, "source": "active",
+            }
+            for j in s.scalars(
+                select(JournalEntry).order_by(JournalEntry.id.desc())
+            )
+        ]
+
+    legacy = [
+        {**row, "source": "legacy"}
+        for row in read_legacy_journal_entry()
+    ]
+    return sorted(
+        active + legacy,
+        key=lambda item: str(item["at"]),
+        reverse=True,
+    )
 
 
 @app.get("/api/journal/{entry_id}")
-def journal_entry(entry_id: int):
-    with broker.Session() as s:
-        j = s.get(JournalEntry, entry_id)
-        if not j:
-            raise HTTPException(404)
-        try:
-            transcript = __import__("json").loads(j.transcript_json)
-        except (TypeError, ValueError):
-            transcript = {}
-        passport = transcript.get("trade_passport")
-        integrity = "NOT_AVAILABLE"
-        if isinstance(passport, dict):
-            integrity = "VERIFIED" if verify_passport(passport) else "FAILED"
-        return {
-            "summary": j.summary,
-            "transcript": j.transcript_json,
-            "process_score": j.process_score,
-            "passport_integrity": integrity,
-            "passport": passport,
-        }
+def journal_entry(entry_id: int, source: str = "active"):
+    if source == "legacy":
+        j = read_legacy_journal_entry(entry_id)
+        if j is None:
+            raise HTTPException(404, "Historical journal entry not found")
+        summary = j["summary"]
+        transcript_json = j["transcript_json"]
+        process_score = j["process_score"]
+    elif source == "active":
+        with broker.Session() as s:
+            j = s.get(JournalEntry, entry_id)
+            if not j:
+                raise HTTPException(404, "Journal entry not found")
+            summary = j.summary
+            transcript_json = j.transcript_json
+            process_score = j.process_score
+    else:
+        raise HTTPException(400, "Invalid journal source")
+
+    try:
+        transcript = __import__("json").loads(transcript_json)
+    except (TypeError, ValueError):
+        transcript = {}
+
+    passport = transcript.get("trade_passport")
+    integrity = "NOT_AVAILABLE"
+    if isinstance(passport, dict):
+        integrity = "VERIFIED" if verify_passport(passport) else "FAILED"
+
+    return {
+        "summary": summary,
+        "transcript": transcript_json,
+        "process_score": process_score,
+        "passport_integrity": integrity,
+        "passport": passport,
+        "source": source,
+    }
 
 
 @app.post("/api/backtest/run")

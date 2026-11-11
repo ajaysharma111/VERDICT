@@ -1220,10 +1220,11 @@
           ? j
               .map(
                 (e) =>
-                  `<div class="j" data-id="${e.id}">
+                  `<div class="j" data-id="${e.id}" data-source="${esc(e.source || "active")}">
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
                       <div>
                         <span class="tag ${esc(e.outcome)}">${esc(e.outcome)}</span>
+                        ${e.source === "legacy" ? '<span class="badge">LEGACY · READ ONLY</span>' : ""}
                         <b>${esc(e.symbol)}</b>
                       </div>
                       <span class="badge ${e.process_score >= 80 ? "ok" : ""}">Process Score: ${e.process_score}/100</span>
@@ -1300,7 +1301,7 @@
 
         let j, t;
         try {
-          j = await api("/api/journal/" + row.dataset.id);
+          j = await api("/api/journal/" + row.dataset.id + "?source=" + encodeURIComponent(row.dataset.source || "active"));
           t = JSON.parse(j.transcript);
         } catch (error) {
           d.innerHTML = `<div class="note">Could not load journal entry: ${esc(error.message)}</div>`;
