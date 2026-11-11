@@ -198,15 +198,12 @@ def test_api_flow_and_kill_switch(client):
     pf = client.get("/api/portfolio").json()
     assert pf["execution_mode"] == "PAPER"
 
-    executed_count = sum(
-        result["outcome"] == "EXECUTED" for result in trial_results
-    )
+    # Every completed verdict decision is journaled, whether or not
+    # the risk engine and Judge permit an order to execute.
     journal_entries = client.get("/api/journal").json()
-    assert len(journal_entries) == executed_count
-    assert all(result["trial_id"] is not None for result in trial_results
-               if result["outcome"] == "EXECUTED")
-    assert all(result["trial_id"] is None for result in trial_results
-               if result["outcome"] != "EXECUTED")
+    assert len(journal_entries) == len(trial_results)
+    assert {entry["symbol"] for entry in journal_entries} == set(WATCHLIST)
+    assert all(result["trial_id"] is not None for result in trial_results)
 
     # Seed fresh stream ticks so the kill switch has valid
     # executable paper prices to flatten at.
