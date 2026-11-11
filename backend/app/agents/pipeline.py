@@ -10,6 +10,7 @@ import pandas as pd
 from ..database.models import JournalEntry
 from ..risk.engine import AccountState, RiskEngine, TradeProposal
 from ..trading.paper_broker import PaperBroker
+from ..trading.passport import create_passport
 from . import rule_based as rb
 from .llm import RuleAgents
 
@@ -177,6 +178,22 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
 
     trial_id = None
     if outcome == "EXECUTED" and order is not None and order.status == "FILLED":
+        transcript["trade_passport"] = create_passport(
+            order=order,
+            trial={
+                "symbol": symbol,
+                "source": source,
+                "generated_at": now,
+                "evidence": transcript["evidence"],
+                "strategist": transcript["strategist"],
+                "prosecutor": transcript["prosecutor"],
+                "defender": transcript["defender"],
+                "preliminary_assessment": transcript["preliminary_assessment"],
+                "judge": transcript["judge"],
+                "risk": transcript["risk"],
+                "process_breakdown": transcript["process_breakdown"],
+            },
+        )
         with broker.Session.begin() as s:
             j = JournalEntry(
                 at=now,
