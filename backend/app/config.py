@@ -40,6 +40,7 @@ class Settings:
     slippage_bps: Decimal = Decimal("5")
     market_data_mode: str = "demo"  # demo | live  (never switches silently)
     timezone: str = "Asia/Kolkata"
+    allowed_hosts: tuple[str, ...] = ("127.0.0.1", "localhost", "::1")
 
 
 def load_settings() -> Settings:
@@ -56,4 +57,12 @@ def load_settings() -> Settings:
         max_stock_exposure=d("MAX_STOCK_EXPOSURE", "0.20"),
         slippage_bps=d("SLIPPAGE_BPS", "5"),
         market_data_mode=os.getenv("MARKET_DATA_MODE", "demo").lower(),
+        allowed_hosts=tuple(dict.fromkeys(
+            ["127.0.0.1", "localhost", "::1"]
+            + [
+                host.strip().lower().rstrip(".")
+                for host in os.getenv("ALLOWED_HOSTS", "").split(",")
+                if host.strip()
+            ]
+        )),
     )

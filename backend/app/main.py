@@ -198,13 +198,26 @@ async def lifespan(_app):
 app = FastAPI(title="VERDICT - paper trading only", lifespan=lifespan)
 
 
+def _request_hostname(value: str) -> str:
+    """Extract a normalized hostname from a Host header or an Origin URL."""
+    from urllib.parse import urlsplit
+
+    try:
+        parsed = urlsplit(value if "://" in value else f"//{value}")
+        return (parsed.hostname or "").lower().rstrip(".")
+    except ValueError:
+        return ""
+
+
+def _trusted_hostname(hostname: str) -> bool:
+    return bool(hostname) and hostname in settings.allowed_hosts
+
+
 @app.middleware("http")
 async def local_only(request, call_next):
-    """Defends the local API against other websites: DNS-rebinding (Host check) and cross-site POSTs such as a
-    malicious page calling /api/system/resume (custom header forces a CORS preflight that we never grant)."""
-    host = request.headers.get("host", "")
-    name = host[1:host.index("]")] if host.startswith("[") and "]" in host else host.split(":")[0]
-    if name not in ("127.0.0.1", "localhost", "::1"):
+    """Allow only localhost and explicitly configured deployment hosts."""
+    hostname = _request_hostname(request.headers.get("host", ""))
+    if not _trusted_hostname(hostname):
         return JSONResponse({"detail": "Forbidden host"}, 403)
     if request.method not in ("GET", "HEAD") and request.headers.get("x-verdict-client") != "1":
         return JSONResponse({"detail": "Missing X-Verdict-Client header"}, 403)
@@ -301,18 +314,30 @@ async def market_stream_status():
 
 @app.websocket("/ws/market")
 async def market_stream(ws: WebSocket):
-    host = ws.headers.get("host", "")
-    hostname = host[1:host.index("]")] if host.startswith("[") and "]" in host else host.split(":")[0]
+    hostname = _request_hostname(ws.headers.get("host", ""))
     origin = ws.headers.get("origin", "")
-    if hostname not in ("127.0.0.1", "localhost", "::1"):
+    if not _trusted_hostname(hostname):
         await ws.close(code=1008)
         return
-    if origin:
-        from urllib.parse import urlparse
-        origin_host = (urlparse(origin).hostname or "").lower()
-        if origin_host not in ("127.0.0.1", "localhost", "::1"):
+        if origin:
+         from urllib.parse import urlsplit
+
+        try:
+            parsed_origin = urlsplit(origin)
+            origin_scheme = parsed_origin.scheme.lower()
+            origin_host = (parsed_origin.hostname or "").lower().rstrip(".")
+        except ValueError:
             await ws.close(code=1008)
             return
+
+        if (
+            origin_scheme not in ("http", "https")
+            or not _trusted_hostname(origin_host)
+            or origin_host != hostname
+        ):
+            await ws.close(code=1008)
+            return
+
     await stream_hub.connect(ws)
     try:
         while True:

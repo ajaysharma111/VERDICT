@@ -141,3 +141,70 @@ def test_live_stream_tick_immediately_runs_exit_monitor(raw_client):
     asyncio.run(scenario())
     assert raw_client.broker.positions() == []
     assert any(o.reason == "STOP triggered" and o.status == "FILLED" for o in raw_client.broker.orders())
+
+def test_configured_render_host_and_foreign_host(raw_client, monkeypatch):
+    monkeypatch.setenv("ALLOWED_HOSTS", "verdict-demo.onrender.com")
+
+    importlib.reload(raw_client)
+
+    trusted = TestClient(
+        raw_client.app,
+        base_url="https://verdict-demo.onrender.com",
+    )
+
+    assert trusted.get("/api/health").status_code == 200
+
+    assert trusted.post("/api/system/checkin").status_code == 403
+
+    assert trusted.post(
+        "/api/system/checkin",
+        headers={"X-Verdict-Client": "1"},
+    ).status_code == 200
+
+    foreign = TestClient(
+        raw_client.app,
+        base_url="https://attacker.example",
+    )
+
+    assert foreign.get("/api/health").status_code == 403
+
+
+def test_websocket_rejects_untrusted_and_invalid_origins(raw_client, monkeypatch):
+    from starlette.websockets import WebSocketDisconnect
+
+    monkeypatch.setenv("ALLOWED_HOSTS", "verdict-demo.onrender.com")
+
+    import app.config as config
+    importlib.reload(config)
+    importlib.reload(raw_client)
+
+    client = TestClient(
+        raw_client.app,
+        base_url="https://verdict-demo.onrender.com",
+    )
+
+    # A trusted host and matching HTTPS Origin are accepted.
+    with client.websocket_connect(
+    "/ws/market",
+    headers={
+        "host": "verdict-demo.onrender.com",
+        "origin": "https://verdict-demo.onrender.com",
+    },
+):
+        pass
+
+    # An untrusted Origin must be rejected.
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(
+            "/ws/market",
+            headers={"origin": "https://attacker.example"},
+        ):
+            pass
+
+    # A non-HTTP URL scheme must be rejected.
+    with pytest.raises(WebSocketDisconnect):
+        with client.websocket_connect(
+            "/ws/market",
+            headers={"origin": "javascript://verdict-demo.onrender.com"},
+        ):
+            pass
