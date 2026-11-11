@@ -13,6 +13,7 @@ from app.market.demo_data import WATCHLIST, demo_candles
 from app.risk.engine import RiskEngine
 from app.trading.paper_broker import PaperBroker
 from app.database.models import JournalEntry
+from app.trading.passport import create_passport
 
 NOW = datetime(2026, 11, 9, 5, 0)  # Mon 10:30 IST, naive UTC as used by the app
 
@@ -179,6 +180,8 @@ def test_journal_api_reads_entry_and_returns_404_for_missing(client):
     assert body["summary"] == "Journal API test entry"
     assert body["process_score"] == 95
     assert json.loads(body["transcript"]) == transcript
+    assert body["passport_integrity"] == "NOT_AVAILABLE"
+    assert body["passport"] is None
 
     # Test nonexistent journal entry.
     missing = client.get("/api/journal/999999")
@@ -437,3 +440,79 @@ def test_demo_live_wallets_are_isolated_and_reset_only_selected_mode(client):
     response = client.post("/api/market/mode", json={"mode": "demo"})
     assert response.status_code == 200
     assert client.get("/api/portfolio").json()["cash"] == D("90000")
+
+
+
+def test_journal_api_verifies_valid_passport_and_rejects_tampering(client):
+    from types import SimpleNamespace
+
+    import app.main as m
+
+    order = SimpleNamespace(
+        id=17,
+        client_order_id="paper-api-17",
+        execution_mode="PAPER",
+        symbol="TCS",
+        side="BUY",
+        order_type="MARKET",
+        quantity=3,
+        reference_price="3500.00",
+        fill_price="3501.25",
+        slippage="1.25",
+        charges="2.10",
+        status="FILLED",
+        created_at=None,
+        executed_at=None,
+        bracket_stop="3400",
+        bracket_target="3700",
+        thesis_invalidation="Close below support",
+    )
+    passport = create_passport(
+        order,
+        {
+            "symbol": "TCS",
+            "source": "DEMO",
+            "evidence": [{"id": "E1", "finding": "trend"}],
+            "judge": {"decision": "APPROVE"},
+            "risk": {"approved": True, "quantity": 3},
+        },
+    )
+
+    valid_transcript = {"trade_passport": passport}
+    tampered_passport = json.loads(json.dumps(passport))
+    tampered_passport["order"]["fill_price"] = "9999.00"
+    tampered_transcript = {"trade_passport": tampered_passport}
+
+    with m.broker.Session.begin() as session:
+        valid_entry = JournalEntry(
+            at=NOW,
+            symbol="TCS",
+            outcome="EXECUTED",
+            summary="Valid passport API test",
+            transcript_json=json.dumps(valid_transcript),
+            process_score=100,
+        )
+        tampered_entry = JournalEntry(
+            at=NOW,
+            symbol="TCS",
+            outcome="EXECUTED",
+            summary="Tampered passport API test",
+            transcript_json=json.dumps(tampered_transcript),
+            process_score=100,
+        )
+        session.add_all([valid_entry, tampered_entry])
+        session.flush()
+        valid_id = valid_entry.id
+        tampered_id = tampered_entry.id
+
+    valid_response = client.get(f"/api/journal/{valid_id}")
+    assert valid_response.status_code == 200
+    valid_body = valid_response.json()
+    assert valid_body["passport_integrity"] == "VERIFIED"
+    assert valid_body["passport"]["sha256"] == passport["sha256"]
+
+    tampered_response = client.get(f"/api/journal/{tampered_id}")
+    assert tampered_response.status_code == 200
+    tampered_body = tampered_response.json()
+    assert tampered_body["passport_integrity"] == "FAILED"
+    assert tampered_body["passport"]["order"]["fill_price"] == "9999.00"
