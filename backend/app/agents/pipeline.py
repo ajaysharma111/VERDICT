@@ -10,6 +10,7 @@ import pandas as pd
 from ..database.models import JournalEntry
 from ..risk.engine import AccountState, RiskEngine, TradeProposal
 from ..trading.paper_broker import PaperBroker
+from ..trading.passport import create_passport
 from . import rule_based as rb
 from .llm import RuleAgents
 
@@ -175,20 +176,44 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
         "order_id": order.id if order else None,
     }
 
+    # A completed analysis is a journal event even when no order is placed.
+    # Trade Passports remain exclusive to successfully filled PAPER orders.
     trial_id = None
     if outcome == "EXECUTED" and order is not None and order.status == "FILLED":
-        with broker.Session.begin() as s:
-            j = JournalEntry(
-                at=now,
-                symbol=symbol,
-                outcome=outcome,
-                summary=summary,
-                transcript_json=json.dumps(transcript),
-                process_score=score,
-            )
-            s.add(j)
-            s.flush()
-            trial_id = j.id
+        transcript["trade_passport"] = create_passport(
+            order=order,
+            trial={
+                "symbol": symbol,
+                "source": source,
+                "generated_at": now,
+                "evidence": transcript["evidence"],
+                "strategist": transcript["strategist"],
+                "prosecutor": transcript["prosecutor"],
+                "defender": transcript["defender"],
+                "preliminary_assessment": transcript["preliminary_assessment"],
+                "judge": transcript["judge"],
+                "risk": transcript["risk"],
+                "process_breakdown": transcript["process_breakdown"],
+            },
+        )
+
+    transcript["journal"] = {
+        "recorded": True,
+        "record_type": "TRADE_EXECUTION" if "trade_passport" in transcript else "DECISION_ONLY",
+        "outcome": outcome,
+    }
+    with broker.Session.begin() as s:
+        j = JournalEntry(
+            at=now,
+            symbol=symbol,
+            outcome=outcome,
+            summary=summary,
+            transcript_json=json.dumps(transcript),
+            process_score=score,
+        )
+        s.add(j)
+        s.flush()
+        trial_id = j.id
 
     return {
         "trial_id": trial_id,

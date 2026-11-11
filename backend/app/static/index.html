@@ -1347,12 +1347,23 @@
              <div class="note" style="margin-top:6px"><b>I am wrong if:</b> ${esc(judge.i_am_wrong_if)}</div>`
           : '<div class="note">No final Judge ruling (no BUY proposal submitted).</div>';
 
+        const passport = j.passport || t.trade_passport;
+        const passportHtml = passport
+          ? `<div class="verdict ${j.passport_integrity === "VERIFIED" ? "APPROVE" : "REJECT"}">${esc(j.passport_integrity || "UNVERIFIED")}</div>
+             <div class="note">Paper order #${esc(passport.order?.id)} · ${esc(passport.order?.symbol)} · ${esc(passport.order?.quantity)} shares</div>
+             <div>Simulated fill: <b>${inr(passport.order?.fill_price)}</b></div>
+             <div class="note">Reference: ${inr(passport.order?.reference_price)} · Slippage: ${inr(passport.order?.slippage)} · Charges: ${inr(passport.order?.charges)}</div>
+             <div class="note" style="word-break:break-all;margin-top:8px">SHA-256: ${esc(passport.sha256)}</div>
+             <div class="note">Integrity check detects changes to this stored snapshot; it is not a blockchain or external signature.</div>`
+          : '<div class="note">No Trade Passport was stored for this entry.</div>';
+
         d.innerHTML =
           section("1 · TRADE PROPOSAL", `${proposal}<div class="note" style="margin-top:6px">${esc(s.rationale)}</div>`) +
           section("2 · BLIND JUDGE · STAGE 1", preliminary) +
           section("3 · ADVERSARIAL COUNSEL", argumentsHtml) +
           section("4 · FINAL RULING · STAGE 2", finalJudge) +
-          section("5 · RISK ENGINE EVALUATION", `<b>${risk.approved ? "APPROVED" : "BLOCKED"}</b> ${risk.quantity ? `· ${risk.quantity} shares` : ""} <div class="note">${(risk.reasons || []).join("; ")}</div>`);
+          section("5 · RISK ENGINE EVALUATION", `<b>${risk.approved ? "APPROVED" : "BLOCKED"}</b> ${risk.quantity ? `· ${risk.quantity} shares` : ""} <div class="note">${(risk.reasons || []).join("; ")}</div>`) +
+          section("6 · VERDICT TRADE PASSPORT", passportHtml);
       });
 
       function evChips(ids) {

@@ -29,6 +29,7 @@ from .market.provider import (AngelOneProvider, DemoProvider, LiveMarketProvider
 from .market.stream import MarketStreamHub
 from .risk.engine import RiskEngine, RiskLimits, is_market_open
 from .trading.monitor import monitor_tick
+from .trading.passport import verify_passport
 from .trading.paper_broker import PaperBroker
 
 settings = load_settings()  # raises if the env tries to enable live trading
@@ -419,7 +420,21 @@ def journal_entry(entry_id: int):
         j = s.get(JournalEntry, entry_id)
         if not j:
             raise HTTPException(404)
-        return {"summary": j.summary, "transcript": j.transcript_json, "process_score": j.process_score}
+        try:
+            transcript = __import__("json").loads(j.transcript_json)
+        except (TypeError, ValueError):
+            transcript = {}
+        passport = transcript.get("trade_passport")
+        integrity = "NOT_AVAILABLE"
+        if isinstance(passport, dict):
+            integrity = "VERIFIED" if verify_passport(passport) else "FAILED"
+        return {
+            "summary": j.summary,
+            "transcript": j.transcript_json,
+            "process_score": j.process_score,
+            "passport_integrity": integrity,
+            "passport": passport,
+        }
 
 
 @app.post("/api/backtest/run")
