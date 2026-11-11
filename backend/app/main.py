@@ -319,8 +319,9 @@ async def market_stream(ws: WebSocket):
     if not _trusted_hostname(hostname):
         await ws.close(code=1008)
         return
-        if origin:
-         from urllib.parse import urlsplit
+
+    if origin:
+        from urllib.parse import urlsplit
 
         try:
             parsed_origin = urlsplit(origin)
