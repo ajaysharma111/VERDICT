@@ -836,7 +836,65 @@
     </style>
   </head>
   <body>
-    <header>
+    <!-- Full-screen Auth Gateway Screen (First screen shown until user logs in or registers) -->
+    <div id="authGateway" style="position: fixed; inset: 0; background: radial-gradient(circle at 50% 25%, #182848 0%, #080d19 75%); z-index: 99999; display: flex; align-items: center; justify-content: center; padding: 20px;">
+      <div style="background: var(--panel); border: 1px solid var(--gold); box-shadow: 0 16px 50px rgba(0,0,0,0.8), 0 0 30px rgba(245,158,11,0.25); border-radius: 14px; width: 100%; max-width: 440px; padding: 32px 28px;">
+        <div style="text-align: center; margin-bottom: 22px;">
+          <span style="font-size: 40px; line-height: 1;">⚖️</span>
+          <h1 style="margin: 8px 0 2px; font-size: 26px; letter-spacing: 0.22em; color: var(--gold); text-shadow: 0 0 16px var(--gold-glow);">VERDICT</h1>
+          <small style="color: var(--mute); font-size: 11px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;">The Trading Agent on Trial</small>
+          <div style="margin-top: 12px; font-size: 12.5px; color: var(--text-sub);">
+            Sign in to access your separate paper portfolio, wallet &amp; courtroom journal
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 18px; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
+          <button type="button" id="gateTabLogin" class="tab-btn active" onclick="switchGateTab('login')">Sign In</button>
+          <button type="button" id="gateTabRegister" class="tab-btn" onclick="switchGateTab('register')">Register New Account</button>
+        </div>
+
+        <div id="gateError" style="display: none; color: var(--red); background: rgba(239, 68, 68, 0.1); border: 1px solid var(--red); padding: 9px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 14px;"></div>
+
+        <!-- Gateway Sign In Form -->
+        <form id="gateLoginForm" onsubmit="handleGateLogin(event)">
+          <div style="margin-bottom: 14px;">
+            <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 5px;">Username or Email</label>
+            <input type="text" id="gateLoginUser" required style="width: 100%; padding: 10px 14px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="e.g. trader" />
+          </div>
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 5px;">Password</label>
+            <input type="password" id="gateLoginPwd" required style="width: 100%; padding: 10px 14px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="Enter password" />
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <button type="button" onclick="fillGateDemoCredentials()" class="secondary" style="font-size: 11px;">⚡ Use Demo Trader</button>
+            <button type="submit" class="primary" style="padding: 9px 22px; font-size: 13.5px;">Sign In &amp; Enter</button>
+          </div>
+        </form>
+
+        <!-- Gateway Register Form -->
+        <form id="gateRegisterForm" onsubmit="handleGateRegister(event)" style="display: none;">
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 5px;">Choose Username</label>
+            <input type="text" id="gateRegUser" required minlength="3" style="width: 100%; padding: 10px 14px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="e.g. nse_trader" />
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 5px;">Email Address</label>
+            <input type="email" id="gateRegEmail" required style="width: 100%; padding: 10px 14px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="e.g. trader@example.com" />
+          </div>
+          <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 5px;">Create Password (min 6 characters)</label>
+            <input type="password" id="gateRegPwd" required minlength="6" style="width: 100%; padding: 10px 14px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="Create password" />
+          </div>
+          <div style="display: flex; justify-content: flex-end;">
+            <button type="submit" class="primary" style="padding: 9px 22px; font-size: 13.5px;">Create Account &amp; Enter</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main Application Wrapper (Hidden until user logs in or registers) -->
+    <div id="appContainer" style="display: none;">
+      <header>
       <div class="brand">
         <span class="brand-icon">⚖️</span>
         <div>
@@ -923,21 +981,6 @@
               🏛️ LONG TERM
             </button>
           </div>
-        </div>
-
-        <!-- Selective Trading & Log Book Control Bar -->
-        <div id="targetTradingSelectionBar" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--panel2); border-radius: var(--radius); border: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap;">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-            <span style="font-weight: 700; font-size: 11.5px; color: var(--mute); letter-spacing: 0.08em; text-transform: uppercase;">
-              📖 Log Book Recording Rule:
-            </span>
-            <span id="targetTradeBadge" class="badge ok" style="font-weight: 700; font-size: 11.5px;">
-              ⭐ SELECTED FOR TRADING (Will be logged in Courtroom Journal)
-            </span>
-          </div>
-          <button type="button" id="btnToggleSelectTarget" onclick="toggleTargetStockSelection()" class="btn-mini trade-active" style="padding: 6px 14px; font-weight: 700;">
-            ⭐ Toggle Selected for Trading
-          </button>
         </div>
 
         <div class="court-header">
@@ -1125,6 +1168,7 @@
         </div>
       </div>
     </main>
+    </div><!-- End #appContainer -->
 
     <script>
       const $ = (s) => document.querySelector(s);
@@ -1535,13 +1579,18 @@
               .map(
                 (e) =>
                   `<div class="j" data-id="${e.id}" data-source="${esc(e.source || "active")}">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;gap:8px;flex-wrap:wrap">
                       <div>
                         <span class="tag ${esc(e.outcome)}">${esc(e.outcome)}</span>
                         ${e.source === "legacy" ? '<span class="badge">LEGACY · READ ONLY</span>' : ""}
                         <b>${esc(e.symbol)}</b>
                       </div>
-                      <span class="badge ${e.process_score >= 80 ? "ok" : ""}">Process Score: ${e.process_score}/100</span>
+                      <div style="display:flex;align-items:center;gap:8px">
+                        <span class="badge ${e.process_score >= 80 ? "ok" : ""}">Process Score: ${e.process_score}/100</span>
+                        <button class="btn-mini btn-remove-log" style="color:var(--red);border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08);padding:3px 8px;font-size:11px" onclick="deleteLogEntry(event, ${e.id}, '${esc(e.source || "active")}')" title="Remove this log entry from Courtroom Trading Journal">
+                          🗑️ Remove
+                        </button>
+                      </div>
                     </div>
                     <small class="note">${esc(e.at)}</small>
                     <div style="margin-top:4px">${esc(e.summary)}</div>
@@ -1549,7 +1598,7 @@
                   </div>`,
               )
               .join("")
-          : `<div class="note">No trials yet. Start one above.</div>`;
+          : `<div class="note">No trials for selected trading stocks yet. Select a stock to run a verdict trial.</div>`;
 
         // Render Risk logs
         $("#riskLog").innerHTML = lg.length
@@ -1602,9 +1651,24 @@
         }
       };
 
+      async function deleteLogEntry(event, id, source) {
+        event.stopPropagation();
+        if (source === "legacy") {
+          alert("Historical legacy entries are read-only and cannot be removed.");
+          return;
+        }
+        if (!confirm("Are you sure you want to remove this log entry from your Courtroom Trading Journal?")) return;
+        try {
+          await api(`/api/journal/${id}`, { method: "DELETE" });
+          await refresh();
+        } catch (err) {
+          alert("Could not remove log entry: " + err.message);
+        }
+      }
+
       // Expand journal entries
       $("#journal").addEventListener("click", async (e) => {
-        if (e.target.closest(".chip")) return;
+        if (e.target.closest(".chip") || e.target.closest(".btn-remove-log")) return;
         const row = e.target.closest(".j");
         if (!row) return;
         const d = row.querySelector(".jd");
@@ -1994,6 +2058,71 @@
         $("#loginPassword").value = "verdict123";
       }
 
+      function switchGateTab(tab) {
+        const isLogin = tab === 'login';
+        $("#gateTabLogin").classList.toggle("active", isLogin);
+        $("#gateTabRegister").classList.toggle("active", !isLogin);
+        $("#gateLoginForm").style.display = isLogin ? "block" : "none";
+        $("#gateRegisterForm").style.display = isLogin ? "none" : "block";
+        $("#gateError").style.display = "none";
+      }
+
+      function fillGateDemoCredentials() {
+        $("#gateLoginUser").value = "trader";
+        $("#gateLoginPwd").value = "verdict123";
+      }
+
+      async function handleGateLogin(e) {
+        e.preventDefault();
+        const ident = $("#gateLoginUser").value.trim();
+        const pwd = $("#gateLoginPwd").value;
+        $("#gateError").style.display = "none";
+        try {
+          const r = await post("/api/auth/login", { username_or_email: ident, password: pwd });
+          if (r.token) {
+            authToken = r.token;
+            localStorage.setItem("verdict_auth_token", authToken);
+            currentUser = r.user;
+            if (r.selected_stocks) selectedTradingStocks = new Set(r.selected_stocks);
+            await enterApp();
+          }
+        } catch (err) {
+          $("#gateError").textContent = err.message;
+          $("#gateError").style.display = "block";
+        }
+      }
+
+      async function handleGateRegister(e) {
+        e.preventDefault();
+        const username = $("#gateRegUser").value.trim();
+        const email = $("#gateRegEmail").value.trim();
+        const pwd = $("#gateRegPwd").value;
+        $("#gateError").style.display = "none";
+        try {
+          const r = await post("/api/auth/register", { username, email, password: pwd });
+          if (r.token) {
+            authToken = r.token;
+            localStorage.setItem("verdict_auth_token", authToken);
+            currentUser = r.user;
+            if (r.selected_stocks) selectedTradingStocks = new Set(r.selected_stocks);
+            await enterApp();
+          }
+        } catch (err) {
+          $("#gateError").textContent = err.message;
+          $("#gateError").style.display = "block";
+        }
+      }
+
+      async function enterApp() {
+        await checkAuthStatus();
+        const w = await api("/api/watchlist");
+        $("#sym").innerHTML = w.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
+        renderWatchlistBar(w);
+        await refresh();
+        await loadBacktest();
+        connectMarketStream();
+      }
+
       async function checkAuthStatus() {
         try {
           const r = await api("/api/auth/me");
@@ -2006,14 +2135,24 @@
             if (r.selected_stocks && r.selected_stocks.length) {
               selectedTradingStocks = new Set(r.selected_stocks);
             }
+            $("#authGateway").style.display = "none";
+            $("#appContainer").style.display = "block";
+            return true;
           } else {
             currentUser = null;
             $("#userBadge").style.display = "none";
             $("#btnAuthModal").style.display = "inline-flex";
             $("#btnSignOut").style.display = "none";
+            $("#authGateway").style.display = "flex";
+            $("#appContainer").style.display = "none";
+            return false;
           }
         } catch (e) {
           console.debug("Auth check error:", e);
+          currentUser = null;
+          $("#authGateway").style.display = "flex";
+          $("#appContainer").style.display = "none";
+          return false;
         }
       }
 
@@ -2030,11 +2169,7 @@
             currentUser = r.user;
             if (r.selected_stocks) selectedTradingStocks = new Set(r.selected_stocks);
             closeAuthModal();
-            await checkAuthStatus();
-            renderWatchlistBar([...latestTicks.keys()]);
-            renderTicks();
-            updateTargetTradeBadge();
-            await refresh();
+            await enterApp();
           }
         } catch (err) {
           $("#authError").textContent = err.message;
@@ -2056,11 +2191,7 @@
             currentUser = r.user;
             if (r.selected_stocks) selectedTradingStocks = new Set(r.selected_stocks);
             closeAuthModal();
-            await checkAuthStatus();
-            renderWatchlistBar([...latestTicks.keys()]);
-            renderTicks();
-            updateTargetTradeBadge();
-            await refresh();
+            await enterApp();
           }
         } catch (err) {
           $("#authError").textContent = err.message;
@@ -2077,26 +2208,19 @@
         currentUser = null;
         selectedTradingStocks = new Set(["RELIANCE", "TCS", "INFY"]);
         await checkAuthStatus();
-        renderWatchlistBar([...latestTicks.keys()]);
-        renderTicks();
-        updateTargetTradeBadge();
-        await refresh();
       }
 
       // Initialize application
       (async () => {
         try {
-          await checkAuthStatus();
-          const w = await api("/api/watchlist");
-          $("#sym").innerHTML = w.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
-          renderWatchlistBar(w);
-          updateTargetTradeBadge();
-          await refresh();
-          await loadBacktest();
-          connectMarketStream();
+          const authenticated = await checkAuthStatus();
+          if (authenticated) {
+            await enterApp();
+          }
 
           // Background auto-sync every 3 seconds for stops/targets and order state
           setInterval(async () => {
+            if (!currentUser) return;
             try {
               const pf = await api("/api/portfolio");
               currentCash = Number(pf.cash);
@@ -2106,9 +2230,8 @@
             } catch {}
           }, 3000);
         } catch (x) {
-          $("#banner").style.display = "flex";
-          $("#banner").className = "banner red";
-          $("#banner").textContent = "Cannot connect to backend: " + x.message;
+          $("#gateError").style.display = "block";
+          $("#gateError").textContent = "Cannot connect to backend: " + x.message;
         }
       })();
     </script>

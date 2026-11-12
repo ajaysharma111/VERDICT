@@ -178,12 +178,63 @@ def test_auth_api_flow():
     assert tcs_res["trial_id"] is None
     assert tcs_res["transcript"]["journal"]["recorded"] is False
 
-    # 7. Logout
+    # 7. Delete journal entry
+    entry_id = infy_res["trial_id"]
+    del_resp = client.delete(f"/api/journal/{entry_id}", headers=auth_headers)
+    assert del_resp.status_code == 200
+    assert del_resp.json()["deleted"] is True
+
+    # 8. Check that journal entry is deleted
+    get_del = client.get(f"/api/journal/{entry_id}", headers=auth_headers)
+    assert get_del.status_code == 404
+
+    # 9. Logout
     logout_resp = client.post("/api/auth/logout", headers=auth_headers)
     assert logout_resp.status_code == 200
     assert logout_resp.json()["ok"] is True
 
-    # 8. Check me is unauthenticated
+    # 10. Check me is unauthenticated
     me_after = client.get("/api/auth/me", headers=auth_headers)
     assert me_after.status_code == 200
     assert me_after.json()["authenticated"] is False
+
+
+def test_user_account_isolation():
+    client = TestClient(app)
+    headers = {"Host": "localhost", "X-Verdict-Client": "1"}
+    import uuid
+
+    # User 1
+    u1_name = f"user1_{uuid.uuid4().hex[:6]}"
+    r1 = client.post("/api/auth/register", json={"username": u1_name, "email": f"{u1_name}@t.com", "password": "pass123"}, headers=headers)
+    assert r1.status_code == 200
+    t1 = r1.json()["token"]
+    h1 = {**headers, "Authorization": f"Bearer {t1}"}
+
+    # User 2
+    u2_name = f"user2_{uuid.uuid4().hex[:6]}"
+    r2 = client.post("/api/auth/register", json={"username": u2_name, "email": f"{u2_name}@t.com", "password": "pass123"}, headers=headers)
+    assert r2.status_code == 200
+    t2 = r2.json()["token"]
+    h2 = {**headers, "Authorization": f"Bearer {t2}"}
+
+    # Set User 1 selected stocks to ["RELIANCE"]
+    client.post("/api/user/selected-stocks/set", json={"symbols": ["RELIANCE"]}, headers=h1)
+    # Set User 2 selected stocks to ["TCS"]
+    client.post("/api/user/selected-stocks/set", json={"symbols": ["TCS"]}, headers=h2)
+
+    # Check that selected stocks are separate
+    s1 = client.get("/api/user/selected-stocks", headers=h1).json()["selected_stocks"]
+    s2 = client.get("/api/user/selected-stocks", headers=h2).json()["selected_stocks"]
+    assert s1 == ["RELIANCE"]
+    assert s2 == ["TCS"]
+
+    # User 1 runs trial on RELIANCE -> recorded in User 1's journal
+    tr1 = client.post("/api/trial/start", json={"symbol": "RELIANCE", "simulation_mode": True}, headers=h1)
+    assert tr1.status_code == 200
+    assert tr1.json()["journal_recorded"] is True
+
+    # User 2's journal should NOT have User 1's entry
+    j2 = client.get("/api/journal", headers=h2).json()
+    assert all(e["symbol"] == "TCS" for e in j2)
+

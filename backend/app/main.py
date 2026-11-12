@@ -85,6 +85,35 @@ risk = RiskEngine(RiskLimits(settings.risk_per_trade, settings.daily_loss_limit,
 current_mode = settings.market_data_mode.lower()
 broker = broker_live if current_mode == "live" else broker_demo
 
+_user_brokers: dict[tuple[int, str], PaperBroker] = {}
+
+
+def get_user_broker(user_id: int, mode: str | None = None) -> PaperBroker:
+    m = (mode or current_mode).lower()
+    key = (user_id, m)
+    if key not in _user_brokers:
+        if ":memory:" in settings.database_url:
+            db_url = "sqlite:///:memory:"
+        elif settings.database_url.endswith(".db"):
+            base = settings.database_url[:-3]
+            db_url = f"{base}_user_{user_id}_{m}.db"
+        else:
+            db_url = f"{settings.database_url}_user_{user_id}_{m}"
+        _user_brokers[key] = PaperBroker(db_url, settings.initial_capital, settings.slippage_bps)
+    return _user_brokers[key]
+
+
+def get_broker_for_request(request: Request | None = None) -> PaperBroker:
+    if request:
+        try:
+            user = get_current_user(request)
+            if user:
+                return get_user_broker(user.id, current_mode)
+        except Exception:
+            pass
+    return broker
+
+
 # Historical database: read-only; never used by the active paper broker.
 legacy_db_path = None
 if settings.database_url.startswith("sqlite:///") and ":memory:" not in settings.database_url:
@@ -138,7 +167,11 @@ async def _run_market_monitor():
     if _tick_lock is None:
         _tick_lock = asyncio.Lock()
     async with _tick_lock:
-        await asyncio.to_thread(monitor_tick, broker, risk, prices(), now_utc())
+        p = prices()
+        now = now_utc()
+        await asyncio.to_thread(monitor_tick, broker, risk, p, now)
+        for ub in list(_user_brokers.values()):
+            await asyncio.to_thread(monitor_tick, ub, risk, p, now)
 
 
 async def _market_stream_loop():
@@ -512,57 +545,58 @@ class TrialRequest(BaseModel):
 
 
 @app.post("/api/trial/start")
-def trial_start(req: TrialRequest, request: Request):
+def trial_start(req: TrialRequest, request: Request = None):
+    b = get_broker_for_request(request)
     df = provider.historical(req.symbol, "ONE_DAY", None, None)
     src = df.attrs.get("source", "UNKNOWN")
     now = now_utc()
     p = prices()
-    monitor_tick(broker, risk, p, now)  # stops/targets, day roll, daily-loss lock before any new entry
+    monitor_tick(b, risk, p, now)  # stops/targets, day roll, daily-loss lock before any new entry
     status, fresh = assess(df, now)
-    all_priced = all(x.symbol in p for x in broker.positions())  # unpriced positions hide losses
+    all_priced = all(x.symbol in p for x in b.positions())  # unpriced positions hide losses
     p[req.symbol] = Decimal(str(df.close.iloc[-1]))
     tt = req.trading_type.upper().strip() if req.trading_type else "INTRADAY"
 
     sym = req.symbol.upper().strip()
-    if req.selected_for_trading is not None:
+    user = get_current_user(request) if request else None
+    if user:
+        with auth_session_factory() as s:
+            user_stocks = get_selected_stocks(s, user.id)
+            record_journal = sym in user_stocks
+    elif req.selected_for_trading is not None:
         record_journal = req.selected_for_trading
     else:
-        user = get_current_user(request)
-        if user:
-            with auth_session_factory() as s:
-                user_stocks = get_selected_stocks(s, user.id)
-                record_journal = sym in user_stocks
-        else:
-            record_journal = True
+        record_journal = True
 
-    return run_trial(req.symbol, df, src, broker, risk, p, now, data_fresh=fresh and all_priced,
+    return run_trial(req.symbol, df, src, b, risk, p, now, data_fresh=fresh and all_priced,
                      simulation_mode=req.simulation_mode or src == "DEMO",
                      news=get_news(req.symbol, current_mode), agents=get_agents(),
                      trading_type=tt, record_journal=record_journal)
 
 
 @app.get("/api/trial/history")
-def trial_history():
-    return journal()
+def trial_history(request: Request = None):
+    return journal(request)
 
 
 @app.get("/api/trial/{trial_id}")
-def trial_get(trial_id: int):
-    return journal_entry(trial_id)
+def trial_get(trial_id: int, request: Request = None):
+    return journal_entry(trial_id, request)
 
 
 @app.get("/api/portfolio")
-def portfolio():
-    p, a = prices(), broker.account()
-    pos = broker.positions()
+def portfolio(request: Request = None):
+    b = get_broker_for_request(request)
+    p, a = prices(), b.account()
+    pos = b.positions()
     return {
         "execution_mode": "PAPER",
         "cash": a.cash,
-        "equity": broker.equity(p),
+        "equity": b.equity(p),
         "realized_pnl": a.realized_pnl,
         "price_freshness": {x.symbol: ("FRESH" if x.symbol in p else "STALE_OR_UNAVAILABLE")
                             for x in pos},
-        "unrealized_pnl": broker.unrealized(p),
+        "unrealized_pnl": b.unrealized(p),
         "halted": a.halted,
         "halt_reason": a.halt_reason,
         "positions": [
@@ -583,8 +617,9 @@ def portfolio():
 
 
 @app.post("/api/wallet/reset")
-def reset_wallet():
-    reset_balance = broker.reset_wallet()
+def reset_wallet(request: Request = None):
+    b = get_broker_for_request(request)
+    reset_balance = b.reset_wallet()
     latest_prices.clear()
     latest_price_at.clear()
     return {
@@ -597,28 +632,40 @@ def reset_wallet():
 
 
 @app.get("/api/orders")
-def orders():
-    return [{c.name: getattr(o, c.name) for c in o.__table__.columns} for o in broker.orders()]
+def orders(request: Request = None):
+    b = get_broker_for_request(request)
+    return [{c.name: getattr(o, c.name) for c in o.__table__.columns} for o in b.orders()]
 
 
 @app.get("/api/journal")
-def journal():
-    with broker.Session() as s:
+def journal(request: Request = None):
+    b = get_broker_for_request(request)
+    user = get_current_user(request) if request else None
+    selected_filter = None
+    if user:
+        with auth_session_factory() as s_auth:
+            selected_filter = set(get_selected_stocks(s_auth, user.id))
+
+    with b.Session() as s:
+        stmt = select(JournalEntry).order_by(JournalEntry.id.desc())
+        all_j = s.scalars(stmt).all()
+        if selected_filter is not None:
+            all_j = [j for j in all_j if j.symbol in selected_filter]
         active = [
             {
                 "id": j.id, "at": j.at, "symbol": j.symbol,
                 "outcome": j.outcome, "summary": j.summary,
                 "process_score": j.process_score, "source": "active",
             }
-            for j in s.scalars(
-                select(JournalEntry).order_by(JournalEntry.id.desc())
-            )
+            for j in all_j
         ]
 
-    legacy = [
-        {**row, "source": "legacy"}
-        for row in read_legacy_journal_entry()
-    ]
+    legacy = []
+    if not user:
+        legacy = [
+            {**row, "source": "legacy"}
+            for row in read_legacy_journal_entry()
+        ]
     return sorted(
         active + legacy,
         key=lambda item: str(item["at"]),
@@ -626,8 +673,23 @@ def journal():
     )
 
 
+@app.delete("/api/journal/{entry_id}")
+@app.post("/api/journal/{entry_id}/delete")
+def delete_journal(entry_id: int, request: Request = None, source: str = "active"):
+    b = get_broker_for_request(request)
+    if source == "active":
+        with b.Session.begin() as s:
+            j = s.get(JournalEntry, entry_id)
+            if not j:
+                raise HTTPException(404, "Journal entry not found")
+            s.delete(j)
+        return {"deleted": True, "id": entry_id}
+    raise HTTPException(400, "Historical legacy entries cannot be deleted")
+
+
 @app.get("/api/journal/{entry_id}")
-def journal_entry(entry_id: int, source: str = "active"):
+def journal_entry(entry_id: int, request: Request = None, source: str = "active"):
+    b = get_broker_for_request(request)
     if source == "legacy":
         j = read_legacy_journal_entry(entry_id)
         if j is None:
@@ -636,7 +698,7 @@ def journal_entry(entry_id: int, source: str = "active"):
         transcript_json = j["transcript_json"]
         process_score = j["process_score"]
     elif source == "active":
-        with broker.Session() as s:
+        with b.Session() as s:
             j = s.get(JournalEntry, entry_id)
             if not j:
                 raise HTTPException(404, "Journal entry not found")
@@ -678,25 +740,29 @@ def risk_settings():
 
 
 @app.get("/api/risk/logs")
-def risk_logs():
-    with broker.Session() as s:
+def risk_logs(request: Request = None):
+    b = get_broker_for_request(request)
+    with b.Session() as s:
         return [{"at": r.at, "event": r.event, "symbol": r.symbol, "detail": r.detail}
                 for r in s.scalars(select(RiskLog).order_by(RiskLog.id.desc()).limit(200))]
 
 
 @app.post("/api/system/stop")
-def stop():
-    ok = broker.stop_trading(prices(), now_utc())
+def stop(request: Request = None):
+    b = get_broker_for_request(request)
+    ok = b.stop_trading(prices(), now_utc())
     return {"halted": True, "all_positions_flattened": ok}
 
 
 @app.post("/api/system/resume")
-def resume():
-    broker.resume(now_utc())
+def resume(request: Request = None):
+    b = get_broker_for_request(request)
+    b.resume(now_utc())
     return {"halted": False}
 
 
 @app.post("/api/system/checkin")
-def checkin():
-    broker.checkin(now_utc())
+def checkin(request: Request = None):
+    b = get_broker_for_request(request)
+    b.checkin(now_utc())
     return {"checked_in": True}
