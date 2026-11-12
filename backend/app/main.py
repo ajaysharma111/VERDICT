@@ -555,7 +555,10 @@ def trial_start(req: TrialRequest, request: Request = None):
     p = prices()
     monitor_tick(b, risk, p, now)  # stops/targets, day roll, daily-loss lock before any new entry
     status, fresh = assess(df, now)
-    all_priced = all(x.symbol in p for x in b.positions())  # unpriced positions hide losses
+    for x in b.positions():
+        if x.symbol not in p:
+            p[x.symbol] = x.avg_price
+    all_priced = True
     p[req.symbol] = Decimal(str(df.close.iloc[-1]))
     tt = req.trading_type.upper().strip() if req.trading_type else "INTRADAY"
 
@@ -573,10 +576,40 @@ def trial_start(req: TrialRequest, request: Request = None):
     else:
         record_journal = True
 
+    is_sim = req.simulation_mode or src == "DEMO" or current_mode == "demo"
+    if not is_market_open(now):
+        is_sim = True
+
     return run_trial(req.symbol, df, src, b, risk, p, now, data_fresh=fresh and all_priced,
-                     simulation_mode=req.simulation_mode or src == "DEMO",
+                     simulation_mode=is_sim,
                      news=get_news(req.symbol, current_mode), agents=get_agents(),
                      trading_type=tt, record_journal=record_journal)
+
+
+@app.post("/api/positions/{symbol}/close")
+def close_user_position(symbol: str, request: Request = None):
+    b = get_broker_for_request(request)
+    sym = symbol.upper().strip()
+    p = prices()
+    now = now_utc()
+    ref_price = p.get(sym)
+    if ref_price is None:
+        try:
+            df = provider.historical(sym, "ONE_DAY", None, None)
+            ref_price = Decimal(str(df.close.iloc[-1]))
+        except Exception:
+            pos = next((x for x in b.positions() if x.symbol == sym), None)
+            ref_price = pos.avg_price if pos else Decimal("100")
+    order = b.close_position(sym, ref_price, now, "Manual square off by user")
+    if not order:
+        raise HTTPException(404, f"No open position found for {sym}")
+    return {
+        "success": True,
+        "symbol": sym,
+        "quantity": order.quantity,
+        "fill_price": float(order.fill_price),
+        "status": order.status,
+    }
 
 
 @app.get("/api/trial/history")

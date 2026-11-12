@@ -107,7 +107,14 @@ class RiskEngine:
         capped = min(Decimal(qty), room_stock, room_total, cash_room)
         capped_qty = int(capped) if capped > 0 else 0
         if capped_qty < 1:
-            why = "Insufficient cash" if cash_room < 1 else "Exposure limit leaves no room"
+            if p.symbol in s.positions and held >= s.equity * L.max_stock_exposure:
+                why = f"Max exposure for {p.symbol} reached ({int(L.max_stock_exposure * 100)}% of portfolio); close existing position to trade again"
+            elif cash_room < 1:
+                why = "Insufficient cash in paper wallet"
+            elif len(s.positions) >= L.max_open_positions:
+                why = f"Max open positions ({L.max_open_positions}) reached"
+            else:
+                why = "Exposure limit leaves no room"
             return RiskDecision(False, 0, [why])
         notes = []
         if capped_qty < qty:

@@ -264,6 +264,20 @@ class PaperBroker:
             s.get(Account, 1).last_checkin = now
             self.log("CHECKIN", detail="human check-in", now=now, s=s)
 
+    def close_position(self, symbol: str, price: Decimal, now: datetime, reason: str = "Manual close") -> Order | None:
+        with self.Session.begin() as s:
+            pos = s.scalar(select(Position).where(Position.symbol == symbol))
+            if not pos or pos.quantity <= 0:
+                return None
+            o = Order(client_order_id=uuid.uuid4().hex, execution_mode="PAPER", symbol=pos.symbol,
+                      side="SELL", order_type="MARKET", quantity=pos.quantity, reference_price=price,
+                      status="PENDING", reason=reason, created_at=now)
+            s.add(o)
+            s.flush()
+            self._fill_sell(s, o, price, now, force_price=q(price * (1 - self.slip)))
+            self.log("POSITION_CLOSED", pos.symbol, f"Manual square off at {price}", now, s)
+            return o
+
     def new_day(self, prices: dict[str, Decimal]) -> None:
         eq = self.equity(prices)
         with self.Session.begin() as s:

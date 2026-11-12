@@ -1542,11 +1542,11 @@
           b.innerHTML = "";
         }
 
-        $("#posCountBadge").textContent = `${currentPositions.length} / 5 Active`;
+        $("#posCountBadge").textContent = `${currentPositions.length} / 10 Active`;
 
         // Render Positions table
         $("#posTable").innerHTML = currentPositions.length
-          ? `<thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>LTP (Live)</th><th>Unrealized P&L</th><th>Stop</th><th>Target</th><th>Thesis Invalidation</th></tr></thead><tbody>` +
+          ? `<thead><tr><th>Symbol</th><th>Qty</th><th>Entry</th><th>LTP (Live)</th><th>Unrealized P&L</th><th>Stop</th><th>Target</th><th>Thesis Invalidation</th><th>Action</th></tr></thead><tbody>` +
             currentPositions
               .map((p) => {
                 const ltp = p.current_price || (latestTicks.has(p.symbol) ? latestTicks.get(p.symbol).price : Number(p.avg_price));
@@ -1561,11 +1561,16 @@
                   <td>${inr(p.stop)}</td>
                   <td>${inr(p.target)}</td>
                   <td class="note">${esc(p.i_am_wrong_if || "—")}</td>
+                  <td>
+                    <button class="btn-mini btn-remove-log" style="color:var(--red);border-color:rgba(239,68,68,0.4);background:rgba(239,68,68,0.08);padding:3px 8px;font-size:11px" onclick="event.stopPropagation(); closePosition('${esc(p.symbol)}')">
+                      Square Off
+                    </button>
+                  </td>
                 </tr>`;
               })
               .join("") +
             `</tbody>`
-          : `<tr><td colspan="8" class="note">No open positions. Select a stock to run a verdict trial.</td></tr>`;
+          : `<tr><td colspan="9" class="note">No open positions. Select a stock to run a verdict trial.</td></tr>`;
 
         // Render initial KPIs with initial unrealized calculation
         updatePositionsAndUnrealized();
@@ -1886,6 +1891,17 @@
         }
       });
 
+      async function closePosition(sym) {
+        if (!confirm(`Square off / close position in ${sym}?`)) return;
+        try {
+          const r = await post(`/api/positions/${encodeURIComponent(sym)}/close`);
+          await refresh();
+          alert(`Successfully squared off ${r.quantity} shares of ${sym} at ₹${r.fill_price}`);
+        } catch (e) {
+          alert(`Could not close position: ${e.message}`);
+        }
+      }
+
       async function runTrial(sym) {
         $("#trialNote").innerHTML = '<span class="thinking dots">Deliberating</span>';
         const isTradeSelected = selectedTradingStocks.has((sym || "").toUpperCase());
@@ -1893,6 +1909,7 @@
           symbol: sym,
           trading_type: currentTradingType,
           selected_for_trading: isTradeSelected,
+          simulation_mode: true,
         });
         $("#trialNote").textContent = "";
         await showTrial(r);
