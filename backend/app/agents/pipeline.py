@@ -79,8 +79,10 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
     else:
         verdict = None
 
-    if verdict is not None:
-        preliminary_assessment = getattr(agents, "preliminary_assessment", None)
+    # Always extract preliminary_assessment regardless of action — it must be validated.
+    preliminary_assessment = getattr(agents, "preliminary_assessment", None)
+    if verdict is None and preliminary_assessment is None:
+        pass  # no judge ran, nothing to validate
 
     # Validate every agent's evidence citations, including both Judge stages.
     known = {e.id for e in ev}

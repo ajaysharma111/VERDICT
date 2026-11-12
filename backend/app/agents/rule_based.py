@@ -153,8 +153,14 @@ def strategist(symbol: str, ev: list[Evidence], ctx: dict) -> Proposal:
 
 def prosecutor(p: Proposal, ev: list[Evidence], ctx: dict) -> Argument:
     if p.action == "NO_TRADE":
-        return Argument(role="PROSECUTOR", points=["No proposal to challenge; court not convened"],
-                        evidence_ids=list(p.evidence_ids), severity=0.0)
+        # Even on NO_TRADE, surface event-risk warnings from evidence
+        by = {e.finding: e.id for e in ev}
+        ns = ctx.get("news")
+        pts, ids = ["No proposal to challenge; court not convened"], list(p.evidence_ids)
+        if ns and ns["event_risk"] and "Event-risk headline" in by:
+            pts.append(f"Event risk: {ns['event_risk'][0].title}")
+            ids.append(by["Event-risk headline"])
+        return Argument(role="PROSECUTOR", points=pts, evidence_ids=ids, severity=0.0)
     row = ctx["row"]
     tt = ctx.get("trading_type", "INTRADAY")
     pts, ids, sev = [], [], 0.0

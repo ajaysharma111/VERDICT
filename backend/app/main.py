@@ -688,7 +688,10 @@ def journal(request: Request = None):
         stmt = select(JournalEntry).order_by(JournalEntry.id.desc()).limit(50)
         all_j = s.scalars(stmt).all()
         if selected_filter:
-            all_j = [j for j in all_j if j.symbol in selected_filter or j.outcome == "EXECUTED"]
+            # Only show journal entries for stocks the user has selected for trading.
+            # An EXECUTED trade on a non-selected stock should NOT appear here — it was
+            # already blocked from being recorded (record_journal=False in trial_start).
+            all_j = [j for j in all_j if j.symbol in selected_filter]
         active = [
             {
                 "id": j.id, "at": j.at, "symbol": j.symbol,
