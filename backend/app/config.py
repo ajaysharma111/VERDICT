@@ -32,7 +32,7 @@ class Settings:
     host: str = "127.0.0.1"
     port: int = 8000
     database_url: str = "sqlite:///./verdict.db"
-    initial_capital: Decimal = Decimal("100000")
+    initial_capital: Decimal = Decimal("1000000")
     risk_per_trade: Decimal = Decimal("0.01")
     daily_loss_limit: Decimal = Decimal("0.03")
     max_open_positions: int = 10
@@ -49,7 +49,7 @@ def load_settings() -> Settings:
         host=os.getenv("HOST", "127.0.0.1"),
         port=int(os.getenv("PORT", "8000")),
         database_url=os.getenv("DATABASE_URL", "sqlite:///./verdict.db"),
-        initial_capital=d("INITIAL_CAPITAL", "100000"),
+        initial_capital=d("INITIAL_CAPITAL", "1000000"),
         risk_per_trade=d("RISK_PER_TRADE", "0.01"),
         daily_loss_limit=d("DAILY_LOSS_LIMIT", "0.03"),
         max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "10")),

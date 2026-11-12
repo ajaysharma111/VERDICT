@@ -1839,6 +1839,11 @@
           ? `<span class="badge ok" style="margin-left:6px" title="Entry recorded in Courtroom Trading Journal">📝 Logged to Journal (Trial #${r.trial_id || ''})</span>`
           : `<span class="badge" style="color:var(--mute);margin-left:6px" title="Stock is not in your selected trading list, so no journal entry was created">👁️ Analysis Preview Only (Not Logged in Journal)</span>`;
 
+        const isCashBlocked = (rk.reasons || []).some((reason) => /cash|exposure/i.test(reason));
+        const cashResetBtn = isCashBlocked
+          ? `<div style="margin-top:8px"><button class="btn-mini" style="background:rgba(245,158,11,0.15);color:var(--gold);border:1px solid var(--gold);padding:4px 10px;border-radius:6px;cursor:pointer" onclick="document.getElementById('btnResetWallet').click()">↻ Low Cash / High Exposure · Click here to Reset Paper Wallet</button></div>`
+          : "";
+
         o.innerHTML = `
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
@@ -1850,6 +1855,7 @@
               <span class="tag ${esc(r.outcome)}">${esc(r.outcome)}</span> · <b>Process Score: ${r.process_score}/100</b>
             </div>
           </div>
+          ${cashResetBtn}
           <div class="note" style="margin-top:8px">${esc(r.summary)}</div>
           <div class="note" style="margin-top:6px">
             Agents backend: ${Object.entries(t.agent_backends || {}).map(([k, v]) => `${esc(k)}=<b>${esc(v)}</b>`).join(" · ")}

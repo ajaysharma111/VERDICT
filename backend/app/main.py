@@ -497,6 +497,10 @@ def auth_me(request: Request):
         return {"authenticated": False, "user": None, "selected_stocks": []}
     with auth_session_factory() as s:
         selected = get_selected_stocks(s, user.id)
+        if not selected:
+            default_stocks = WATCHLIST[:3] if len(WATCHLIST) >= 3 else list(WATCHLIST)
+            selected = set_selected_stocks(s, user.id, default_stocks)
+            s.commit()
     return {
         "authenticated": True,
         "user": {"id": user.id, "username": user.username, "email": user.email},
@@ -510,7 +514,12 @@ def user_selected_stocks(request: Request):
     if not user:
         return {"selected_stocks": ["RELIANCE", "TCS", "INFY"]}
     with auth_session_factory() as s:
-        return {"selected_stocks": get_selected_stocks(s, user.id)}
+        selected = get_selected_stocks(s, user.id)
+        if not selected:
+            default_stocks = WATCHLIST[:3] if len(WATCHLIST) >= 3 else list(WATCHLIST)
+            selected = set_selected_stocks(s, user.id, default_stocks)
+            s.commit()
+        return {"selected_stocks": selected}
 
 
 @app.post("/api/user/selected-stocks/toggle")
@@ -567,12 +576,13 @@ def trial_start(req: TrialRequest, request: Request = None):
     if user:
         with auth_session_factory() as s:
             user_stocks = get_selected_stocks(s, user.id)
-            if user_stocks:
-                record_journal = sym in user_stocks
-            else:
-                record_journal = True
+            if not user_stocks:
+                default_stocks = WATCHLIST[:3] if len(WATCHLIST) >= 3 else list(WATCHLIST)
+                user_stocks = set_selected_stocks(s, user.id, default_stocks)
+                s.commit()
+            record_journal = sym in set(user_stocks)
     elif req.selected_for_trading is not None:
-        record_journal = req.selected_for_trading
+        record_journal = bool(req.selected_for_trading)
     else:
         record_journal = True
 
@@ -682,15 +692,18 @@ def journal(request: Request = None):
     selected_filter = None
     if user:
         with auth_session_factory() as s_auth:
-            selected_filter = set(get_selected_stocks(s_auth, user.id))
+            user_stocks = get_selected_stocks(s_auth, user.id)
+            if not user_stocks:
+                default_stocks = WATCHLIST[:3] if len(WATCHLIST) >= 3 else list(WATCHLIST)
+                user_stocks = set_selected_stocks(s_auth, user.id, default_stocks)
+                s_auth.commit()
+            selected_filter = set(user_stocks)
 
     with b.Session() as s:
         stmt = select(JournalEntry).order_by(JournalEntry.id.desc()).limit(50)
         all_j = s.scalars(stmt).all()
-        if selected_filter:
-            # Only show journal entries for stocks the user has selected for trading.
-            # An EXECUTED trade on a non-selected stock should NOT appear here — it was
-            # already blocked from being recorded (record_journal=False in trial_start).
+        if selected_filter is not None:
+            # Strictly show ONLY journal entries for stocks selected for trading.
             all_j = [j for j in all_j if j.symbol in selected_filter]
         active = [
             {
