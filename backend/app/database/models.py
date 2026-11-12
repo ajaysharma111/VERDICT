@@ -91,6 +91,33 @@ class JournalEntry(Base):
     process_score: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class User(Base):
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(256))
+    salt: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+    token: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+
+
+class UserSelectedStock(Base):
+    __tablename__ = "user_selected_stocks"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    symbol: Mapped[str] = mapped_column(String(32), index=True)
+    selected_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 def make_session_factory(url: str):
     engine = create_engine(url, future=True,
                            connect_args={"check_same_thread": False} if url.startswith("sqlite") else {})

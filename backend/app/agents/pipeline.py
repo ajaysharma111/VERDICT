@@ -61,7 +61,7 @@ def score_process(ev, prop, pro, dfn, verdict, outcome, qty, equity, risk_limit,
 def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, risk: RiskEngine,
               prices: dict[str, Decimal], now: datetime, data_fresh: bool = True,
               simulation_mode: bool = False, news=None, agents=None,
-              trading_type: str = "INTRADAY") -> dict:
+              trading_type: str = "INTRADAY", record_journal: bool = True) -> dict:
     agents = agents or RuleAgents()
     tt = (trading_type or "INTRADAY").upper().strip()
     ev, ctx = rb.build_evidence(symbol, df, source, news, symbol_memory(broker, symbol), trading_type=tt)
@@ -206,26 +206,36 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
             },
         )
 
-    transcript["journal"] = {
-        "recorded": True,
-        "record_type": "TRADE_EXECUTION" if "trade_passport" in transcript else "DECISION_ONLY",
-        "outcome": outcome,
-    }
-    with broker.Session.begin() as s:
-        j = JournalEntry(
-            at=now,
-            symbol=symbol,
-            outcome=outcome,
-            summary=summary,
-            transcript_json=json.dumps(transcript),
-            process_score=score,
-        )
-        s.add(j)
-        s.flush()
-        trial_id = j.id
+    trial_id = None
+    if record_journal:
+        transcript["journal"] = {
+            "recorded": True,
+            "record_type": "TRADE_EXECUTION" if "trade_passport" in transcript else "DECISION_ONLY",
+            "outcome": outcome,
+        }
+        with broker.Session.begin() as s:
+            j = JournalEntry(
+                at=now,
+                symbol=symbol,
+                outcome=outcome,
+                summary=summary,
+                transcript_json=json.dumps(transcript),
+                process_score=score,
+            )
+            s.add(j)
+            s.flush()
+            trial_id = j.id
+    else:
+        transcript["journal"] = {
+            "recorded": False,
+            "record_type": "PREVIEW_ONLY",
+            "outcome": outcome,
+            "reason": "Stock not selected for trading log book",
+        }
 
     return {
         "trial_id": trial_id,
+        "journal_recorded": record_journal,
         "symbol": symbol,
         "trading_type": tt,
         "outcome": outcome,

@@ -11,16 +11,21 @@ from decimal import Decimal
 
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 
 from .agents.llm import get_agents
 from .agents.pipeline import run_trial
+from .auth import (
+    register_user, authenticate_user, create_session,
+    get_user_from_token, invalidate_session,
+    get_selected_stocks, toggle_selected_stock, set_selected_stocks,
+)
 from .backtesting.engine import run_backtest
 from .config import load_settings
-from .database.models import JournalEntry, RiskLog
+from .database.models import JournalEntry, RiskLog, User, UserSession, UserSelectedStock, make_session_factory
 from .market.demo_data import WATCHLIST, demo_candles
 from .market.indicators import indicator_frame
 from .market.freshness import assess
@@ -40,12 +45,37 @@ log = logging.getLogger("verdict")
 if ":memory:" in settings.database_url:
     demo_db_url = "sqlite:///:memory:"
     live_db_url = "sqlite:///:memory:"
+    auth_db_url = "sqlite:///:memory:"
 elif settings.database_url.endswith(".db"):
     demo_db_url = settings.database_url.replace(".db", "_demo.db")
     live_db_url = settings.database_url.replace(".db", "_live.db")
+    auth_db_url = settings.database_url.replace(".db", "_auth.db")
 else:
     demo_db_url = f"{settings.database_url}_demo"
     live_db_url = f"{settings.database_url}_live"
+    auth_db_url = f"{settings.database_url}_auth"
+
+auth_session_factory = make_session_factory(auth_db_url)
+
+def _seed_default_user():
+    try:
+        with auth_session_factory() as s:
+            if not s.scalar(select(User).limit(1)):
+                u = register_user(s, "trader", "trader@verdict.local", "verdict123")
+                set_selected_stocks(s, u.id, ["RELIANCE", "TCS", "INFY", "HDFCBANK"])
+                s.commit()
+    except Exception as e:
+        log.warning("Could not seed default user: %s", e)
+
+_seed_default_user()
+
+def get_current_user(request: Request) -> User | None:
+    auth_hdr = request.headers.get("authorization", "")
+    if auth_hdr.lower().startswith("bearer "):
+        token = auth_hdr[7:].strip()
+        with auth_session_factory() as s:
+            return get_user_from_token(s, token)
+    return None
 
 broker_demo = PaperBroker(demo_db_url, settings.initial_capital, settings.slippage_bps)
 broker_live = PaperBroker(live_db_url, settings.initial_capital, settings.slippage_bps)
@@ -359,14 +389,130 @@ def indicators(symbol: str):
     return f.reset_index().astype({"index": str}).to_dict("records")[0]
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+
+class LoginRequest(BaseModel):
+    username_or_email: str
+    password: str
+
+
+class ToggleSelectedStockRequest(BaseModel):
+    symbol: str
+
+
+class SetSelectedStocksRequest(BaseModel):
+    symbols: list[str]
+
+
+@app.post("/api/auth/register")
+def auth_register(req: RegisterRequest):
+    with auth_session_factory() as s:
+        try:
+            user = register_user(s, req.username, req.email, req.password)
+            default_stocks = WATCHLIST[:3] if len(WATCHLIST) >= 3 else list(WATCHLIST)
+            set_selected_stocks(s, user.id, default_stocks)
+            token = create_session(s, user.id)
+            s.commit()
+            return {
+                "ok": True,
+                "token": token,
+                "user": {"id": user.id, "username": user.username, "email": user.email},
+                "selected_stocks": default_stocks,
+            }
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+
+@app.post("/api/auth/login")
+def auth_login(req: LoginRequest):
+    with auth_session_factory() as s:
+        user = authenticate_user(s, req.username_or_email, req.password)
+        if not user:
+            raise HTTPException(401, "Invalid username/email or password")
+        token = create_session(s, user.id)
+        selected = get_selected_stocks(s, user.id)
+        s.commit()
+        return {
+            "ok": True,
+            "token": token,
+            "user": {"id": user.id, "username": user.username, "email": user.email},
+            "selected_stocks": selected,
+        }
+
+
+@app.post("/api/auth/logout")
+def auth_logout(request: Request):
+    auth_hdr = request.headers.get("authorization", "")
+    if auth_hdr.lower().startswith("bearer "):
+        token = auth_hdr[7:].strip()
+        with auth_session_factory() as s:
+            invalidate_session(s, token)
+            s.commit()
+    return {"ok": True, "message": "Logged out successfully"}
+
+
+@app.get("/api/auth/me")
+def auth_me(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return {"authenticated": False, "user": None, "selected_stocks": []}
+    with auth_session_factory() as s:
+        selected = get_selected_stocks(s, user.id)
+    return {
+        "authenticated": True,
+        "user": {"id": user.id, "username": user.username, "email": user.email},
+        "selected_stocks": selected,
+    }
+
+
+@app.get("/api/user/selected-stocks")
+def user_selected_stocks(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return {"selected_stocks": ["RELIANCE", "TCS", "INFY"]}
+    with auth_session_factory() as s:
+        return {"selected_stocks": get_selected_stocks(s, user.id)}
+
+
+@app.post("/api/user/selected-stocks/toggle")
+def user_toggle_selected_stock(req: ToggleSelectedStockRequest, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Authentication required to select stocks for trading")
+    with auth_session_factory() as s:
+        is_selected, all_selected = toggle_selected_stock(s, user.id, req.symbol)
+        s.commit()
+        return {
+            "symbol": req.symbol.upper().strip(),
+            "selected": is_selected,
+            "selected_stocks": all_selected,
+        }
+
+
+@app.post("/api/user/selected-stocks/set")
+def user_set_selected_stocks(req: SetSelectedStocksRequest, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(401, "Authentication required to select stocks for trading")
+    with auth_session_factory() as s:
+        all_selected = set_selected_stocks(s, user.id, req.symbols)
+        s.commit()
+        return {"selected_stocks": all_selected}
+
+
 class TrialRequest(BaseModel):
     symbol: str = "RELIANCE"
     simulation_mode: bool = False
     trading_type: str = "INTRADAY"  # INTRADAY | OPTIONS | FUTURES | LONG_TERM
+    selected_for_trading: bool | None = None
 
 
 @app.post("/api/trial/start")
-def trial_start(req: TrialRequest):
+def trial_start(req: TrialRequest, request: Request):
     df = provider.historical(req.symbol, "ONE_DAY", None, None)
     src = df.attrs.get("source", "UNKNOWN")
     now = now_utc()
@@ -376,10 +522,23 @@ def trial_start(req: TrialRequest):
     all_priced = all(x.symbol in p for x in broker.positions())  # unpriced positions hide losses
     p[req.symbol] = Decimal(str(df.close.iloc[-1]))
     tt = req.trading_type.upper().strip() if req.trading_type else "INTRADAY"
+
+    sym = req.symbol.upper().strip()
+    if req.selected_for_trading is not None:
+        record_journal = req.selected_for_trading
+    else:
+        user = get_current_user(request)
+        if user:
+            with auth_session_factory() as s:
+                user_stocks = get_selected_stocks(s, user.id)
+                record_journal = sym in user_stocks
+        else:
+            record_journal = True
+
     return run_trial(req.symbol, df, src, broker, risk, p, now, data_fresh=fresh and all_priced,
                      simulation_mode=req.simulation_mode or src == "DEMO",
                      news=get_news(req.symbol, current_mode), agents=get_agents(),
-                     trading_type=tt)
+                     trading_type=tt, record_journal=record_journal)
 
 
 @app.get("/api/trial/history")

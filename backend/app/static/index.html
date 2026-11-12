@@ -751,6 +751,88 @@
         }
       }
 
+      /* Auth & Selective Trading Watchlist Styling */
+      .modal-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(4, 7, 14, 0.85);
+        backdrop-filter: blur(6px);
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+      }
+      .modal-card {
+        background: var(--panel);
+        border: 1px solid var(--gold);
+        box-shadow: 0 8px 32px rgba(245, 158, 11, 0.25);
+        border-radius: var(--radius);
+        width: 100%;
+        max-width: 440px;
+        padding: 22px;
+        animation: modalIn 0.25s ease-out;
+      }
+      @keyframes modalIn {
+        from { opacity: 0; transform: scale(0.96) translateY(-10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      .tab-btn {
+        background: transparent;
+        border: 1px solid transparent;
+        color: var(--mute);
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        padding: 7px 14px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
+      }
+      .tab-btn:hover {
+        color: var(--text);
+        background: var(--panel2);
+      }
+      .tab-btn.active {
+        color: var(--gold);
+        background: rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.35);
+      }
+      .star-btn {
+        cursor: pointer;
+        font-size: 15px;
+        line-height: 1;
+        transition: transform 0.15s ease;
+        user-select: none;
+        display: inline-flex;
+        align-items: center;
+      }
+      .star-btn:hover {
+        transform: scale(1.3);
+      }
+      .star-btn.gold {
+        color: var(--gold);
+        text-shadow: 0 0 8px var(--gold-glow);
+      }
+      .star-btn.mute {
+        color: #475569;
+      }
+      .chip-badge-trade {
+        font-size: 9px;
+        font-weight: 800;
+        padding: 1px 5px;
+        border-radius: 3px;
+        background: rgba(245, 158, 11, 0.18);
+        color: var(--gold);
+        border: 1px solid rgba(245, 158, 11, 0.4);
+        letter-spacing: 0.05em;
+      }
+      .btn-mini.trade-active {
+        background: rgba(245, 158, 11, 0.15);
+        border-color: var(--gold);
+        color: var(--gold);
+        font-weight: 700;
+      }
+
     </style>
   </head>
   <body>
@@ -773,6 +855,17 @@
         </button>
         <button id="btnResume" style="display: none" class="primary">Resume</button>
         <button id="btnStop" class="stop">🛑 STOP TRADING</button>
+        <div class="user-auth-area" style="display:inline-flex;align-items:center;gap:6px;margin-left:6px;border-left:1px solid var(--line);padding-left:10px">
+          <span id="userBadge" class="badge" style="display:none;color:var(--gold);border-color:var(--gold)">
+            👤 <span id="usernameDisplay">trader</span>
+          </span>
+          <button id="btnAuthModal" onclick="openAuthModal('login')" class="btn-mini" style="padding:5px 12px;font-weight:700;color:var(--gold);border-color:var(--gold);background:rgba(245,158,11,0.08)">
+            🔐 Sign In / Register
+          </button>
+          <button id="btnSignOut" onclick="handleSignOut()" class="btn-mini" style="display:none;padding:4px 8px;font-size:11px">
+            Sign Out
+          </button>
+        </div>
       </div>
     </header>
 
@@ -830,6 +923,21 @@
               🏛️ LONG TERM
             </button>
           </div>
+        </div>
+
+        <!-- Selective Trading & Log Book Control Bar -->
+        <div id="targetTradingSelectionBar" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--panel2); border-radius: var(--radius); border: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span style="font-weight: 700; font-size: 11.5px; color: var(--mute); letter-spacing: 0.08em; text-transform: uppercase;">
+              📖 Log Book Recording Rule:
+            </span>
+            <span id="targetTradeBadge" class="badge ok" style="font-weight: 700; font-size: 11.5px;">
+              ⭐ SELECTED FOR TRADING (Will be logged in Courtroom Journal)
+            </span>
+          </div>
+          <button type="button" id="btnToggleSelectTarget" onclick="toggleTargetStockSelection()" class="btn-mini trade-active" style="padding: 6px 14px; font-weight: 700;">
+            ⭐ Toggle Selected for Trading
+          </button>
         </div>
 
         <div class="court-header">
@@ -962,10 +1070,60 @@
       <section class="card">
         <h2>
           <span>Courtroom Trading Journal &amp; Transcripts</span>
-          <span class="note">Click any trial to expand complete transcript</span>
+          <span class="note">Filtered to your selected trading stocks · Click any trial to expand</span>
         </h2>
         <div id="journal"></div>
       </section>
+
+      <!-- Auth Modal (Login / Register) -->
+      <div id="authModal" class="modal-backdrop" style="display: none;" onclick="if(event.target===this)closeAuthModal()">
+        <div class="modal-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 id="authModalTitle" style="margin: 0; color: var(--gold); font-size: 16px;">🔐 Account Sign In</h3>
+            <button type="button" onclick="closeAuthModal()" style="background: none; border: none; color: var(--mute); font-size: 18px; cursor: pointer;">✕</button>
+          </div>
+          <div style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--line); padding-bottom: 8px;">
+            <button type="button" id="tabLogin" class="tab-btn active" onclick="switchAuthTab('login')">Sign In</button>
+            <button type="button" id="tabRegister" class="tab-btn" onclick="switchAuthTab('register')">Register New Account</button>
+          </div>
+          <div id="authError" style="display: none; color: var(--red); background: rgba(239, 68, 68, 0.1); border: 1px solid var(--red); padding: 8px 12px; border-radius: 6px; font-size: 12px; margin-bottom: 12px;"></div>
+          
+          <!-- Sign In Form -->
+          <form id="loginForm" onsubmit="handleLoginSubmit(event)">
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 4px;">Username or Email</label>
+              <input type="text" id="loginUsername" required style="width: 100%; padding: 8px 12px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="e.g. trader or trader@verdict.local" />
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 4px;">Password</label>
+              <input type="password" id="loginPassword" required style="width: 100%; padding: 8px 12px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="Enter password" />
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+              <button type="button" onclick="fillDemoCredentials()" class="secondary" style="font-size: 11px;">⚡ Use Demo Trader</button>
+              <button type="submit" class="primary" id="btnLoginSubmit">Sign In</button>
+            </div>
+          </form>
+
+          <!-- Register Form -->
+          <form id="registerForm" onsubmit="handleRegisterSubmit(event)" style="display: none;">
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 4px;">Username (min 3 chars)</label>
+              <input type="text" id="regUsername" required minlength="3" style="width: 100%; padding: 8px 12px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="e.g. nse_trader" />
+            </div>
+            <div style="margin-bottom: 12px;">
+              <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 4px;">Email Address</label>
+              <input type="email" id="regEmail" required style="width: 100%; padding: 8px 12px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="e.g. trader@example.com" />
+            </div>
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; font-size: 12px; color: var(--mute); margin-bottom: 4px;">Password (min 6 chars)</label>
+              <input type="password" id="regPassword" required minlength="6" style="width: 100%; padding: 8px 12px; background: var(--panel2); border: 1px solid var(--line-light); border-radius: 6px; color: var(--text); font: inherit;" placeholder="Create strong password" />
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+              <button type="submit" class="primary" id="btnRegSubmit">Create Account &amp; Start Trading</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </main>
 
     <script>
@@ -982,8 +1140,17 @@
         "₹" + Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
       const cls = (n) => (Number(n) > 0 ? "pos" : Number(n) < 0 ? "neg" : "");
 
+      let authToken = localStorage.getItem("verdict_auth_token") || "";
+      let currentUser = null;
+      let selectedTradingStocks = new Set(["RELIANCE", "TCS", "INFY"]);
+
       async function api(path, opt = {}) {
-        opt.headers = { "X-Verdict-Client": "1", ...(opt.headers || {}) };
+        const token = localStorage.getItem("verdict_auth_token") || authToken;
+        opt.headers = {
+          "X-Verdict-Client": "1",
+          ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+          ...(opt.headers || {})
+        };
         const r = await fetch(path, opt);
         if (!r.ok) {
           let m = r.statusText;
@@ -1058,6 +1225,8 @@
         $("#sym").value = symbol;
         $("#trialSelectedSym").textContent = symbol;
 
+        updateTargetTradeBadge();
+
         // Highlight watchlist chip
         document.querySelectorAll(".stock-chip").forEach((chip) => {
           chip.classList.toggle("active", chip.dataset.symbol === symbol);
@@ -1076,6 +1245,54 @@
         }
       }
 
+      function updateTargetTradeBadge() {
+        const sym = ($("#sym").value || "RELIANCE").toUpperCase();
+        const isSelected = selectedTradingStocks.has(sym);
+        const badge = document.getElementById("targetTradeBadge");
+        const btn = document.getElementById("btnToggleSelectTarget");
+        if (badge) {
+          if (isSelected) {
+            badge.className = "badge ok";
+            badge.innerHTML = "⭐ SELECTED FOR TRADING (Will be logged in Courtroom Journal)";
+          } else {
+            badge.className = "badge";
+            badge.innerHTML = "👁️ PREVIEW ONLY (Will NOT be logged in Journal)";
+          }
+        }
+        if (btn) {
+          btn.innerHTML = isSelected ? "✓ Selected for Trading" : "⭐ Select for Trading";
+          btn.classList.toggle("trade-active", isSelected);
+        }
+      }
+
+      async function toggleStockSelection(symbol) {
+        if (!symbol) return;
+        symbol = symbol.toUpperCase();
+        if (currentUser) {
+          try {
+            const r = await post("/api/user/selected-stocks/toggle", { symbol });
+            if (r.selected_stocks) {
+              selectedTradingStocks = new Set(r.selected_stocks);
+            }
+          } catch (e) {
+            console.warn("Failed to toggle selected stock on server:", e);
+            if (selectedTradingStocks.has(symbol)) selectedTradingStocks.delete(symbol);
+            else selectedTradingStocks.add(symbol);
+          }
+        } else {
+          if (selectedTradingStocks.has(symbol)) selectedTradingStocks.delete(symbol);
+          else selectedTradingStocks.add(symbol);
+        }
+        renderWatchlistBar([...latestTicks.keys()]);
+        renderTicks();
+        updateTargetTradeBadge();
+      }
+
+      function toggleTargetStockSelection() {
+        const sym = $("#sym").value || "RELIANCE";
+        toggleStockSelection(sym);
+      }
+
       // Render the quick watchlist bar
       function renderWatchlistBar(symbols) {
         if (!symbols || !symbols.length) return;
@@ -1087,10 +1304,14 @@
             const chg = tick && tick.change_pct !== undefined ? `${tick.change_pct >= 0 ? "+" : ""}${tick.change_pct}%` : "";
             const chgClass = tick && tick.change_pct ? cls(tick.change_pct) : "";
             const isActive = s === currentSelected ? "active" : "";
+            const isTradeSelected = selectedTradingStocks.has(s);
+            const starCls = isTradeSelected ? "gold" : "mute";
             return `<div class="stock-chip ${isActive}" data-symbol="${esc(s)}" onclick="selectStock('${esc(s)}')">
+              <span class="star-btn ${starCls}" onclick="event.stopPropagation(); toggleStockSelection('${esc(s)}')" title="${isTradeSelected ? 'Selected for Trading (Will log to Journal). Click to deselect.' : 'Click to select for Trading & Log Book'}">${isTradeSelected ? '★' : '☆'}</span>
               <span class="sym">${esc(s)}</span>
               <span class="px" id="wchip-px-${esc(s)}">${px}</span>
               <span class="chg ${chgClass}" id="wchip-chg-${esc(s)}">${chg}</span>
+              ${isTradeSelected ? '<span class="chip-badge-trade">TRADE</span>' : ''}
             </div>`;
           })
           .join("");
@@ -1112,6 +1333,7 @@
             const chgClass = t.change !== undefined ? cls(t.change) : "";
             const hiLo = t.high && t.low ? `${inr(t.high)} / ${inr(t.low)}` : "—";
             const isSel = t.symbol === currentSelected ? 'style="background:rgba(245,158,11,0.08)"' : "";
+            const isTradeSelected = selectedTradingStocks.has(t.symbol);
             return `<tr ${isSel} data-symbol="${esc(t.symbol)}" onclick="selectStock('${esc(t.symbol)}')">
               <td><b>${esc(t.symbol)}</b></td>
               <td><b>${inr(t.price)}</b></td>
@@ -1120,6 +1342,9 @@
               <td><span class="badge ${t.freshness === "LIVE" ? "ok" : ""}">${esc(t.freshness || t.provider)}</span></td>
               <td class="note">${new Date(t.at).toLocaleTimeString()}</td>
               <td style="text-align:right">
+                <button class="btn-mini ${isTradeSelected ? 'trade-active' : ''}" style="margin-right:4px" onclick="event.stopPropagation(); toggleStockSelection('${esc(t.symbol)}')">
+                  ${isTradeSelected ? '⭐ Trading' : '☆ Analysis'}
+                </button>
                 <button class="btn-mini" onclick="event.stopPropagation(); selectStock('${esc(t.symbol)}'); document.getElementById('courtCard').scrollIntoView({behavior:'smooth'});">
                   ⚖ Verdict
                 </button>
@@ -1544,10 +1769,15 @@
         const tt = r.trading_type || (t && t.trading_type) || currentTradingType;
         const cfg = TRADING_TYPE_CONFIG[tt] || { icon: "⚖️", label: tt };
 
+        const journalBadge = r.journal_recorded
+          ? `<span class="badge ok" style="margin-left:6px" title="Entry recorded in Courtroom Trading Journal">📝 Logged to Journal (Trial #${r.trial_id || ''})</span>`
+          : `<span class="badge" style="color:var(--mute);margin-left:6px" title="Stock is not in your selected trading list, so no journal entry was created">👁️ Analysis Preview Only (Not Logged in Journal)</span>`;
+
         o.innerHTML = `
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
               <span class="badge" style="color:var(--gold);border-color:var(--gold);margin-right:6px">${cfg.icon} ${esc(cfg.label)}</span>
+              ${journalBadge}
               <b>Risk Engine:</b> ${rk.approved ? `Approved ${rk.quantity} shares` : `No entry permitted`} ${rk.reasons.length ? "— " + esc(rk.reasons.join("; ")) : ""}
             </div>
             <div>
@@ -1597,7 +1827,12 @@
 
       async function runTrial(sym) {
         $("#trialNote").innerHTML = '<span class="thinking dots">Deliberating</span>';
-        const r = await post("/api/trial/start", { symbol: sym, trading_type: currentTradingType });
+        const isTradeSelected = selectedTradingStocks.has((sym || "").toUpperCase());
+        const r = await post("/api/trial/start", {
+          symbol: sym,
+          trading_type: currentTradingType,
+          selected_for_trading: isTradeSelected,
+        });
         $("#trialNote").textContent = "";
         await showTrial(r);
         await refresh();
@@ -1734,12 +1969,128 @@
           `</tbody>`;
       }
 
+      // Auth Modal & User Management
+      function openAuthModal(tab = 'login') {
+        $("#authModal").style.display = "flex";
+        switchAuthTab(tab);
+      }
+
+      function closeAuthModal() {
+        $("#authModal").style.display = "none";
+      }
+
+      function switchAuthTab(tab) {
+        const isLogin = tab === 'login';
+        $("#tabLogin").classList.toggle("active", isLogin);
+        $("#tabRegister").classList.toggle("active", !isLogin);
+        $("#loginForm").style.display = isLogin ? "block" : "none";
+        $("#registerForm").style.display = isLogin ? "none" : "block";
+        $("#authModalTitle").textContent = isLogin ? "🔐 Sign In to VERDICT" : "✨ Create VERDICT Account";
+        $("#authError").style.display = "none";
+      }
+
+      function fillDemoCredentials() {
+        $("#loginUsername").value = "trader";
+        $("#loginPassword").value = "verdict123";
+      }
+
+      async function checkAuthStatus() {
+        try {
+          const r = await api("/api/auth/me");
+          if (r.authenticated && r.user) {
+            currentUser = r.user;
+            $("#userBadge").style.display = "inline-flex";
+            $("#usernameDisplay").textContent = r.user.username;
+            $("#btnAuthModal").style.display = "none";
+            $("#btnSignOut").style.display = "inline-flex";
+            if (r.selected_stocks && r.selected_stocks.length) {
+              selectedTradingStocks = new Set(r.selected_stocks);
+            }
+          } else {
+            currentUser = null;
+            $("#userBadge").style.display = "none";
+            $("#btnAuthModal").style.display = "inline-flex";
+            $("#btnSignOut").style.display = "none";
+          }
+        } catch (e) {
+          console.debug("Auth check error:", e);
+        }
+      }
+
+      async function handleLoginSubmit(e) {
+        e.preventDefault();
+        const ident = $("#loginUsername").value.trim();
+        const pwd = $("#loginPassword").value;
+        $("#authError").style.display = "none";
+        try {
+          const r = await post("/api/auth/login", { username_or_email: ident, password: pwd });
+          if (r.token) {
+            authToken = r.token;
+            localStorage.setItem("verdict_auth_token", authToken);
+            currentUser = r.user;
+            if (r.selected_stocks) selectedTradingStocks = new Set(r.selected_stocks);
+            closeAuthModal();
+            await checkAuthStatus();
+            renderWatchlistBar([...latestTicks.keys()]);
+            renderTicks();
+            updateTargetTradeBadge();
+            await refresh();
+          }
+        } catch (err) {
+          $("#authError").textContent = err.message;
+          $("#authError").style.display = "block";
+        }
+      }
+
+      async function handleRegisterSubmit(e) {
+        e.preventDefault();
+        const username = $("#regUsername").value.trim();
+        const email = $("#regEmail").value.trim();
+        const pwd = $("#regPassword").value;
+        $("#authError").style.display = "none";
+        try {
+          const r = await post("/api/auth/register", { username, email, password: pwd });
+          if (r.token) {
+            authToken = r.token;
+            localStorage.setItem("verdict_auth_token", authToken);
+            currentUser = r.user;
+            if (r.selected_stocks) selectedTradingStocks = new Set(r.selected_stocks);
+            closeAuthModal();
+            await checkAuthStatus();
+            renderWatchlistBar([...latestTicks.keys()]);
+            renderTicks();
+            updateTargetTradeBadge();
+            await refresh();
+          }
+        } catch (err) {
+          $("#authError").textContent = err.message;
+          $("#authError").style.display = "block";
+        }
+      }
+
+      async function handleSignOut() {
+        try {
+          await post("/api/auth/logout");
+        } catch {}
+        authToken = "";
+        localStorage.removeItem("verdict_auth_token");
+        currentUser = null;
+        selectedTradingStocks = new Set(["RELIANCE", "TCS", "INFY"]);
+        await checkAuthStatus();
+        renderWatchlistBar([...latestTicks.keys()]);
+        renderTicks();
+        updateTargetTradeBadge();
+        await refresh();
+      }
+
       // Initialize application
       (async () => {
         try {
+          await checkAuthStatus();
           const w = await api("/api/watchlist");
           $("#sym").innerHTML = w.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
           renderWatchlistBar(w);
+          updateTargetTradeBadge();
           await refresh();
           await loadBacktest();
           connectMarketStream();
