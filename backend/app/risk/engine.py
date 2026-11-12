@@ -18,7 +18,7 @@ class RiskLimits:
     max_open_positions: int = 5
     max_stock_exposure: Decimal = Decimal("0.20")
     max_total_exposure: Decimal = Decimal("1.00")
-    checkin_timeout: timedelta = timedelta(hours=24)
+    checkin_timeout: Optional[timedelta] = None
 
 
 @dataclass
@@ -74,8 +74,9 @@ class RiskEngine:
             r.append(f"HALTED: {s.halt_reason or 'kill switch active'}")
         if not s.data_fresh:
             r.append("Market data is not fresh; automated entries disabled")
-        if s.last_checkin is None or as_utc(now) - as_utc(s.last_checkin) > L.checkin_timeout:
-            r.append("Dead-man switch: no human check-in within 24h")
+        if L.checkin_timeout is not None:
+            if s.last_checkin is None or as_utc(now) - as_utc(s.last_checkin) > L.checkin_timeout:
+                r.append("Dead-man switch: no human check-in within 24h")
         if not simulation_mode and not is_market_open(now):
             r.append("Outside market hours (09:15-15:30 IST, Mon-Fri)")
         if self.daily_loss_hit(s):

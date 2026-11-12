@@ -10,7 +10,7 @@ from app.backtesting.engine import run_backtest, strategy_returns, ma_cross_sign
 from app.config import UnsafeConfigError, assert_paper_only
 from app.market.demo_data import demo_candles
 from app.market.provider import AngelOneProvider, DemoProvider, MarketDataProvider
-from app.risk.engine import AccountState, RiskEngine, TradeProposal, IST
+from app.risk.engine import AccountState, RiskEngine, RiskLimits, TradeProposal, IST
 from app.risk.position_sizing import position_size
 from app.trading.paper_broker import OrderError, PaperBroker
 
@@ -72,8 +72,11 @@ def test_max_positions_and_insufficient_cash():
 
 def test_kill_switch_deadman_hours_stale_data():
     assert not R.check_entry(prop(), state(halted=True, halt_reason="x"), OPEN_TIME).approved
-    assert not R.check_entry(prop(), state(last_checkin=OPEN_TIME - timedelta(hours=25)), OPEN_TIME).approved
-    assert not R.check_entry(prop(), state(last_checkin=None), OPEN_TIME).approved
+    R_with_checkin = RiskEngine(RiskLimits(checkin_timeout=timedelta(hours=24)))
+    assert not R_with_checkin.check_entry(prop(), state(last_checkin=OPEN_TIME - timedelta(hours=25)), OPEN_TIME).approved
+    assert not R_with_checkin.check_entry(prop(), state(last_checkin=None), OPEN_TIME).approved
+    # By default, dead-man checkin is disabled
+    assert R.check_entry(prop(), state(last_checkin=None), OPEN_TIME).approved
     assert not R.check_entry(prop(), state(), NIGHT).approved
     assert R.check_entry(prop(), state(), NIGHT, simulation_mode=True).approved
     assert not R.check_entry(prop(), state(data_fresh=False), OPEN_TIME).approved

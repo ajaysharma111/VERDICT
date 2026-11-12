@@ -564,7 +564,10 @@ def trial_start(req: TrialRequest, request: Request = None):
     if user:
         with auth_session_factory() as s:
             user_stocks = get_selected_stocks(s, user.id)
-            record_journal = sym in user_stocks
+            if user_stocks:
+                record_journal = sym in user_stocks
+            else:
+                record_journal = True
     elif req.selected_for_trading is not None:
         record_journal = req.selected_for_trading
     else:

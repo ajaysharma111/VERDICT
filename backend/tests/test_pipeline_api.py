@@ -1,6 +1,6 @@
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal as D
 
 import pytest
@@ -10,7 +10,7 @@ from app.agents import rule_based as rb
 from app.agents.pipeline import run_trial
 from app.agents.schemas import Argument
 from app.market.demo_data import WATCHLIST, demo_candles
-from app.risk.engine import RiskEngine
+from app.risk.engine import RiskEngine, RiskLimits
 from app.trading.paper_broker import PaperBroker
 from app.database.models import JournalEntry
 from app.trading.passport import create_passport
@@ -61,7 +61,7 @@ def test_trial_blocked_without_checkin_or_with_stale_data():
         b = PaperBroker()
 
         res = run_trial(
-            sym, df, "DEMO", b, RiskEngine(), px, NOW,
+            sym, df, "DEMO", b, RiskEngine(RiskLimits(checkin_timeout=timedelta(hours=24))), px, NOW,
             simulation_mode=True,
         )
 
@@ -75,7 +75,7 @@ def test_trial_blocked_without_checkin_or_with_stale_data():
             b.checkin(NOW)
 
             stale = run_trial(
-                sym, df, "DEMO", b, RiskEngine(), px, NOW,
+                sym, df, "DEMO", b, RiskEngine(RiskLimits(checkin_timeout=timedelta(hours=24))), px, NOW,
                 data_fresh=False,
                 simulation_mode=True,
             )

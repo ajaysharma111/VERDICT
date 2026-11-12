@@ -908,9 +908,6 @@
         </button>
         <span class="badge" id="bMkt"><span class="dot"></span> market: …</span>
         <span class="badge" id="bHalt"><span class="dot"></span> status: …</span>
-        <button id="btnCheck" title="Dead-man switch: automated entries pause if no human check-in within 24h">
-          👤 Check-in
-        </button>
         <button id="btnResume" style="display: none" class="primary">Resume</button>
         <button id="btnStop" class="stop">🛑 STOP TRADING</button>
         <div class="user-auth-area" style="display:inline-flex;align-items:center;gap:6px;margin-left:6px;border-left:1px solid var(--line);padding-left:10px">
@@ -1933,15 +1930,17 @@
         selectStock($("#sym").value);
       };
 
-      $("#btnCheck").onclick = async () => {
-        try {
-          await post("/api/system/checkin");
-          await refresh();
-          alert("Check-in recorded. 24-hour dead-man switch timer reset.");
-        } catch (x) {
-          alert("Check-in failed: " + x.message);
-        }
-      };
+      if ($("#btnCheck")) {
+        $("#btnCheck").onclick = async () => {
+          try {
+            await post("/api/system/checkin");
+            await refresh();
+            alert("Check-in recorded. 24-hour dead-man switch timer reset.");
+          } catch (x) {
+            alert("Check-in failed: " + x.message);
+          }
+        };
+      }
 
       $("#btnResume").onclick = async () => {
         try {

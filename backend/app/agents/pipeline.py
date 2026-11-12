@@ -207,9 +207,6 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
         )
 
     trial_id = None
-    if outcome == "EXECUTED":
-        record_journal = True
-
     if record_journal:
         transcript["journal"] = {
             "recorded": True,
