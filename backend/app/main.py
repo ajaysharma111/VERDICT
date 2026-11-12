@@ -169,9 +169,11 @@ async def _run_market_monitor():
     async with _tick_lock:
         p = prices()
         now = now_utc()
-        await asyncio.to_thread(monitor_tick, broker, risk, p, now)
-        for ub in list(_user_brokers.values()):
-            await asyncio.to_thread(monitor_tick, ub, risk, p, now)
+        active_broker = broker_live if current_mode == "live" else broker_demo
+        await asyncio.to_thread(monitor_tick, active_broker, risk, p, now)
+        for (uid, m), ub in list(_user_brokers.items()):
+            if m == current_mode:
+                await asyncio.to_thread(monitor_tick, ub, risk, p, now)
 
 
 async def _market_stream_loop():
@@ -647,10 +649,10 @@ def journal(request: Request = None):
             selected_filter = set(get_selected_stocks(s_auth, user.id))
 
     with b.Session() as s:
-        stmt = select(JournalEntry).order_by(JournalEntry.id.desc())
+        stmt = select(JournalEntry).order_by(JournalEntry.id.desc()).limit(50)
         all_j = s.scalars(stmt).all()
-        if selected_filter is not None:
-            all_j = [j for j in all_j if j.symbol in selected_filter]
+        if selected_filter:
+            all_j = [j for j in all_j if j.symbol in selected_filter or j.outcome == "EXECUTED"]
         active = [
             {
                 "id": j.id, "at": j.at, "symbol": j.symbol,

@@ -46,8 +46,8 @@ def build_evidence(symbol: str, df: pd.DataFrame, source: str,
     if tt == "INTRADAY":
         add("Intraday Trend (EMA9 vs EMA20)", f"{last.ema9:.2f} vs {last.ema20:.2f}",
             "Fast intraday momentum is bullish" if last.ema9 > last.ema20 else "Fast intraday momentum is bearish or neutral")
-        add("Intraday Range & Sizing", f"ATR14 ₹{last.atr14:.2f}",
-            "Tight intraday bracket: 0.8x ATR stop, 1.6x ATR target (same-day exit)")
+        add("Intraday Range & Sizing", f"Daily ATR14 ₹{last.atr14:.2f}",
+            "Achievable same-day target before 15:15 IST close (0.75x ATR target, 0.45x ATR tight stop)")
         add("Intraday Liquidity", f"{last.volume_ratio:.2f}x volume",
             "Adequate intraday volume" if last.volume_ratio >= 0.9 else "Low intraday volume; slippage hazard")
     elif tt == "OPTIONS":
@@ -55,22 +55,22 @@ def build_evidence(symbol: str, df: pd.DataFrame, source: str,
             "High volatility favors directional gamma expansion" if last.vol20 > 0.35 else "Low/moderate volatility; beware theta decay on long calls")
         add("Options Momentum Impulse", f"MACD Hist {mh:.3f}, RSI {last.rsi14:.1f}",
             "Sharp directional impulse to overcome theta decay" if mh > 0 and last.rsi14 > 50 else "Weak directional impulse; high theta risk")
-        add("Options Payoff Structure", "Asymmetric 1:2.5 R:R",
-            "Target 3.0x ATR vs Stop 1.2x ATR to capture explosive gamma run")
+        add("Options Payoff Structure", "Asymmetric 1:2.3 R:R",
+            "Fast momentum impulse target 1.5x ATR vs 0.65x ATR stop to beat theta decay")
     elif tt == "FUTURES":
         add("Futures Trend Alignment", f"EMA20 {last.ema20:.2f} vs SMA50 {last.sma50:.2f}",
             "Sustained swing trend suitable for leveraged futures" if last.ema20 > last.sma50 else "Counter-trend / choppy: high margin leverage risk")
         add("Futures Margin & Whipsaw Risk", f"{last.vol20:.1%} volatility",
             "Controlled volatility; safe for multi-day swing carry" if last.vol20 <= 0.40 else "Elevated volatility; high risk of leveraged stop-out")
-        add("Futures Swing Target", f"Target 4x ATR (₹{last.close + 4 * last.atr14:.2f})",
-            "Multi-day swing momentum target with 2x ATR trailing stop")
+        add("Futures Swing Target", f"Target +3.0x ATR (₹{last.close + 3.0 * last.atr14:.2f})",
+            "Multi-day swing momentum target with 1.5x ATR trailing stop")
     elif tt == "LONG_TERM":
         add("Long-Term Macro Trend (50 vs 200 MA)", f"SMA50 {last.sma50:.2f} vs SMA200 {last.sma200:.2f}",
             "Golden Cross: structural long-term bull market" if last.sma50 >= last.sma200 else "Death Cross: macro structural consolidation")
-        add("Long-Term Structural Support", f"₹{last.close - 3.5 * last.atr14:.2f}",
-            "Deep structural support buffer (3.5x ATR) to avoid premature shakeouts")
+        add("Long-Term Structural Support", f"Stop ₹{last.close - 2.5 * last.atr14:.2f}",
+            "2.5x ATR structural buffer above 50-day SMA; 5.0x ATR multi-month target")
         add("Long-Term Investment Horizon", "Multi-month fundamental compounder",
-            "Wealth compounding horizon targeting 7x ATR return")
+            "Wealth compounding horizon targeting 5x ATR return")
 
     ns = None
     if news is not None:
@@ -101,10 +101,10 @@ def strategist(symbol: str, ev: list[Evidence], ctx: dict) -> Proposal:
             return Proposal(action="NO_TRADE", symbol=symbol, strategy=best or "none", rationale=why,
                             evidence_ids=[by["Intraday Trend (EMA9 vs EMA20)"].id, by["Out-of-sample backtest vs buy-and-hold (Sharpe)"].id])
         entry = Decimal(str(round(float(row.close), 2)))
-        stop = Decimal(str(round(float(row.close - 0.8 * row.atr14), 2)))
-        target = Decimal(str(round(float(row.close + 1.6 * row.atr14), 2)))
+        stop = Decimal(str(round(float(row.close - 0.45 * row.atr14), 2)))
+        target = Decimal(str(round(float(row.close + 0.75 * row.atr14), 2)))
         return Proposal(action="BUY", symbol=symbol, strategy=best, entry=entry, stop=stop, target=target,
-                        rationale=f"[INTRADAY] Fast EMA9 > EMA20 with volume confirmation; stop 0.8xATR, target 1.6xATR (1:2 R:R same-day exit)",
+                        rationale=f"[INTRADAY] Fast EMA9 > EMA20 with volume confirmation; achievable target before 15:15 IST close (stop 0.45xATR, target 0.75xATR)",
                         evidence_ids=[e.id for e in ev if e.finding in ("Last close", "Intraday Trend (EMA9 vs EMA20)", "Intraday Range & Sizing",
                                                                          "Intraday Liquidity", "Out-of-sample backtest vs buy-and-hold (Sharpe)")])
 
@@ -115,10 +115,10 @@ def strategist(symbol: str, ev: list[Evidence], ctx: dict) -> Proposal:
             return Proposal(action="NO_TRADE", symbol=symbol, strategy=best or "none", rationale=why,
                             evidence_ids=[by["Options Momentum Impulse"].id, by["Out-of-sample backtest vs buy-and-hold (Sharpe)"].id])
         entry = Decimal(str(round(float(row.close), 2)))
-        stop = Decimal(str(round(float(row.close - 1.2 * row.atr14), 2)))
-        target = Decimal(str(round(float(row.close + 3.0 * row.atr14), 2)))
+        stop = Decimal(str(round(float(row.close - 0.65 * row.atr14), 2)))
+        target = Decimal(str(round(float(row.close + 1.5 * row.atr14), 2)))
         return Proposal(action="BUY", symbol=symbol, strategy=best, entry=entry, stop=stop, target=target,
-                        rationale=f"[OPTIONS] Call breakout: Accelerating MACD histogram to overcome theta decay; asymmetric 3.0xATR target vs 1.2xATR stop",
+                        rationale=f"[OPTIONS] Call breakout: Accelerating MACD histogram to overcome theta decay; quick impulse target 1.5xATR vs 0.65xATR stop",
                         evidence_ids=[e.id for e in ev if e.finding in ("Last close", "Options Volatility Regime", "Options Momentum Impulse",
                                                                          "Options Payoff Structure", "Out-of-sample backtest vs buy-and-hold (Sharpe)")])
 
@@ -129,10 +129,10 @@ def strategist(symbol: str, ev: list[Evidence], ctx: dict) -> Proposal:
             return Proposal(action="NO_TRADE", symbol=symbol, strategy=best or "none", rationale=why,
                             evidence_ids=[by["Futures Trend Alignment"].id, by["Out-of-sample backtest vs buy-and-hold (Sharpe)"].id])
         entry = Decimal(str(round(float(row.close), 2)))
-        stop = Decimal(str(round(float(row.close - 2.0 * row.atr14), 2)))
-        target = Decimal(str(round(float(row.close + 4.0 * row.atr14), 2)))
+        stop = Decimal(str(round(float(row.close - 1.5 * row.atr14), 2)))
+        target = Decimal(str(round(float(row.close + 3.0 * row.atr14), 2)))
         return Proposal(action="BUY", symbol=symbol, strategy=best, entry=entry, stop=stop, target=target,
-                        rationale=f"[FUTURES] Leveraged swing: Trend continuation above 50 SMA with positive momentum; trailing 2xATR stop, 4xATR swing target",
+                        rationale=f"[FUTURES] Leveraged swing: Trend continuation above 50 SMA with positive momentum; trailing 1.5xATR stop, 3.0xATR swing target",
                         evidence_ids=[e.id for e in ev if e.finding in ("Last close", "Futures Trend Alignment", "Futures Margin & Whipsaw Risk",
                                                                          "Futures Swing Target", "Out-of-sample backtest vs buy-and-hold (Sharpe)")])
 
@@ -143,10 +143,10 @@ def strategist(symbol: str, ev: list[Evidence], ctx: dict) -> Proposal:
             return Proposal(action="NO_TRADE", symbol=symbol, strategy=best or "none", rationale=why,
                             evidence_ids=[by["Long-Term Macro Trend (50 vs 200 MA)"].id, by["Out-of-sample backtest vs buy-and-hold (Sharpe)"].id])
         entry = Decimal(str(round(float(row.close), 2)))
-        stop = Decimal(str(round(float(row.close - 3.5 * row.atr14), 2)))
-        target = Decimal(str(round(float(row.close + 7.0 * row.atr14), 2)))
+        stop = Decimal(str(round(float(row.close - 2.5 * row.atr14), 2)))
+        target = Decimal(str(round(float(row.close + 5.0 * row.atr14), 2)))
         return Proposal(action="BUY", symbol=symbol, strategy=best, entry=entry, stop=stop, target=target,
-                        rationale=f"[LONG_TERM] Structural investment: Golden cross / macro trend alignment with wide 3.5xATR support stop and 7xATR target",
+                        rationale=f"[LONG_TERM] Structural investment: Macro trend alignment with 2.5xATR support stop and 5.0xATR compounding target",
                         evidence_ids=[e.id for e in ev if e.finding in ("Last close", "Long-Term Macro Trend (50 vs 200 MA)", "Long-Term Structural Support",
                                                                          "Long-Term Investment Horizon", "Out-of-sample backtest vs buy-and-hold (Sharpe)")])
 
@@ -334,13 +334,13 @@ def judge(p: Proposal, pro: Argument, dfn: Argument, trading_type: str = "INTRAD
 
     tt = (trading_type or "INTRADAY").upper().strip()
     if tt == "INTRADAY":
-        wrong = f"intraday price breaches stop {p.stop} or fast EMA9 falls below EMA20" if p.stop else "n/a"
+        wrong = f"intraday price breaches stop {p.stop} or trade not exited by 15:15 IST before market close" if p.stop else "n/a"
     elif tt == "OPTIONS":
-        wrong = f"price closes below stop {p.stop} or volatility collapses causing theta erosion" if p.stop else "n/a"
+        wrong = f"underlying breaches stop {p.stop} or MACD momentum flattens causing theta decay" if p.stop else "n/a"
     elif tt == "FUTURES":
-        wrong = f"leveraged swing stop {p.stop} hit or EMA20 falls below SMA50" if p.stop else "n/a"
+        wrong = f"leveraged swing stop {p.stop} hit or daily close below 20-day EMA" if p.stop else "n/a"
     else:
-        wrong = f"structural support at stop {p.stop} broken or death cross forms" if p.stop else "n/a"
+        wrong = f"structural support stop {p.stop} broken or weekly close confirms Death Cross" if p.stop else "n/a"
 
     return Verdict(decision=d, multiplier=m,
                    reasoning=f"[{tt}] Defence strength {dfn.severity:.2f} vs prosecution {pro.severity:.2f}; verdict {d}",
