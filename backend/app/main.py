@@ -362,6 +362,7 @@ def indicators(symbol: str):
 class TrialRequest(BaseModel):
     symbol: str = "RELIANCE"
     simulation_mode: bool = False
+    trading_type: str = "INTRADAY"  # INTRADAY | OPTIONS | FUTURES | LONG_TERM
 
 
 @app.post("/api/trial/start")
@@ -374,9 +375,11 @@ def trial_start(req: TrialRequest):
     status, fresh = assess(df, now)
     all_priced = all(x.symbol in p for x in broker.positions())  # unpriced positions hide losses
     p[req.symbol] = Decimal(str(df.close.iloc[-1]))
+    tt = req.trading_type.upper().strip() if req.trading_type else "INTRADAY"
     return run_trial(req.symbol, df, src, broker, risk, p, now, data_fresh=fresh and all_priced,
                      simulation_mode=req.simulation_mode or src == "DEMO",
-                     news=get_news(req.symbol, current_mode), agents=get_agents())
+                     news=get_news(req.symbol, current_mode), agents=get_agents(),
+                     trading_type=tt)
 
 
 @app.get("/api/trial/history")

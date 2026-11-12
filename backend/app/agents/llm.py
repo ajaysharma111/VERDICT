@@ -77,8 +77,8 @@ class RuleAgents:
     def strategist(self, symbol, ev, ctx): return rb.strategist(symbol, ev, ctx)
     def prosecutor(self, p, ev, ctx): return rb.prosecutor(p, ev, ctx)
     def defender(self, p, ev, ctx): return rb.defender(p, ev, ctx)
-    def judge(self, p, pro, dfn, ev=None):
-        return rb.judge(p, pro, dfn)
+    def judge(self, p, pro, dfn, ev=None, trading_type="INTRADAY"):
+        return rb.judge(p, pro, dfn, trading_type)
 
 
 class LLMAgents(RuleAgents):
@@ -103,7 +103,7 @@ class LLMAgents(RuleAgents):
             return base
 
         def go():
-            out = self.client.generate_json(SYSTEM, f"ROLE: STRATEGIST. The code-gated proposal is BUY {symbol} via {base.strategy}. "
+            out = self.client.generate_json(SYSTEM, f"ROLE: STRATEGIST ({ctx.get('trading_type', 'INTRADAY')}). The code-gated proposal is BUY {symbol} via {base.strategy}. "
                 f"Decide whether to keep it or stand down.\nEVIDENCE:\n{_evtext(ev)}\n"
                 'JSON: {"action":"BUY"|"NO_TRADE","rationale":str,"evidence_ids":[str]}')
             if out.get("action") not in ("BUY", "NO_TRADE"):
@@ -116,25 +116,25 @@ class LLMAgents(RuleAgents):
                                            **({"entry": None, "stop": None, "target": None} if out["action"] == "NO_TRADE" else {})})
         return self._try("strategist", go, lambda: (self.backends.update(strategist="fallback") or base))
 
-    def _arg(self, role, p, ev, fallback):
+    def _arg(self, role, p, ev, fallback, trading_type="INTRADAY"):
         if p.action == "NO_TRADE":
             self.backends[role.lower()] = "rules (no proposal)"
             return fallback()
         stance = "AGAINST" if role == "PROSECUTOR" else "FOR"
 
         def go():
-            out = self.client.generate_json(SYSTEM, f"ROLE: {role}. Argue {stance} this trade: BUY {p.symbol} entry {p.entry} "
+            out = self.client.generate_json(SYSTEM, f"ROLE: {role} ({trading_type}). Argue {stance} this trade: BUY {p.symbol} entry {p.entry} "
                 f"stop {p.stop} target {p.target} ({p.strategy}). The Defender must also acknowledge contradicting evidence.\n"
                 f"EVIDENCE:\n{_evtext(ev)}\n"
                 'JSON: {"points":[str,...max 5],"evidence_ids":[str],"severity":number 0..1 (strength of your case)}')
             sev = min(max(float(out.get("severity", 0.5)), 0.0), 1.0)
             return Argument(role=role, points=_points(out.get("points")), evidence_ids=_ids(out.get("evidence_ids"), ev), severity=sev)
         return self._try(role.lower(), go, fallback)
-    def prosecutor(self, p, ev, ctx): return self._arg("PROSECUTOR", p, ev, lambda: rb.prosecutor(p, ev, ctx))
-    def defender(self, p, ev, ctx): return self._arg("DEFENDER", p, ev, lambda: rb.defender(p, ev, ctx))
+    def prosecutor(self, p, ev, ctx): return self._arg("PROSECUTOR", p, ev, lambda: rb.prosecutor(p, ev, ctx), ctx.get("trading_type", "INTRADAY"))
+    def defender(self, p, ev, ctx): return self._arg("DEFENDER", p, ev, lambda: rb.defender(p, ev, ctx), ctx.get("trading_type", "INTRADAY"))
 
-    def judge(self, p, pro, dfn, ev=None):
-        base = rb.judge(p, pro, dfn)
+    def judge(self, p, pro, dfn, ev=None, trading_type="INTRADAY"):
+        base = rb.judge(p, pro, dfn, trading_type)
         self.preliminary_assessment = None
 
         # Compatibility for direct callers that do not provide original evidence.

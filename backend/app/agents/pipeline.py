@@ -60,16 +60,24 @@ def score_process(ev, prop, pro, dfn, verdict, outcome, qty, equity, risk_limit,
 
 def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, risk: RiskEngine,
               prices: dict[str, Decimal], now: datetime, data_fresh: bool = True,
-              simulation_mode: bool = False, news=None, agents=None) -> dict:
+              simulation_mode: bool = False, news=None, agents=None,
+              trading_type: str = "INTRADAY") -> dict:
     agents = agents or RuleAgents()
-    ev, ctx = rb.build_evidence(symbol, df, source, news, symbol_memory(broker, symbol))
+    tt = (trading_type or "INTRADAY").upper().strip()
+    ev, ctx = rb.build_evidence(symbol, df, source, news, symbol_memory(broker, symbol), trading_type=tt)
 
     prop = agents.strategist(symbol, ev, ctx)
     pro = agents.prosecutor(prop, ev, ctx)
     dfn = agents.defender(prop, ev, ctx)
 
     preliminary_assessment = None
-    verdict = agents.judge(prop, pro, dfn, ev) if prop.action == "BUY" else None
+    if prop.action == "BUY":
+        try:
+            verdict = agents.judge(prop, pro, dfn, ev, trading_type=tt)
+        except TypeError:
+            verdict = agents.judge(prop, pro, dfn, ev)
+    else:
+        verdict = None
 
     if verdict is not None:
         preliminary_assessment = getattr(agents, "preliminary_assessment", None)
@@ -145,7 +153,7 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
             outcome = "BLOCKED_BY_RISK"
             broker.log("ENTRY_BLOCKED", symbol, "; ".join(dec.reasons), now)
 
-    summary = _plain_language(symbol, prop, pro, verdict, outcome, qty, risk_reasons, order)
+    summary = f"[{tt}] {_plain_language(symbol, prop, pro, verdict, outcome, qty, risk_reasons, order)}"
 
     equity = broker.equity(prices)
     score, parts = (
@@ -158,6 +166,7 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
     )
 
     transcript = {
+        "trading_type": tt,
         "source": source,
         "agent_backends": dict(agents.backends),
         "memory": ctx.get("memory"),
@@ -218,6 +227,7 @@ def run_trial(symbol: str, df: pd.DataFrame, source: str, broker: PaperBroker, r
     return {
         "trial_id": trial_id,
         "symbol": symbol,
+        "trading_type": tt,
         "outcome": outcome,
         "summary": summary,
         "process_score": score,

@@ -181,6 +181,32 @@
         background: var(--panel2);
         border-color: var(--line-light);
       }
+      .btn-trading-opt {
+        padding: 6px 14px;
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: 6px;
+        border: 1px solid var(--line-light);
+        background: var(--panel2);
+        color: var(--mute);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn-trading-opt:hover {
+        border-color: var(--gold);
+        color: var(--text);
+        background: var(--panel3);
+        transform: translateY(-1px);
+      }
+      .btn-trading-opt.active {
+        border-color: var(--gold);
+        color: var(--gold);
+        background: rgba(245, 158, 11, 0.15);
+        box-shadow: 0 0 12px var(--gold-glow);
+      }
       main {
         padding: 20px 24px 60px;
         max-width: 1440px;
@@ -779,6 +805,33 @@
           <span>Courtroom Trial — <span id="trialSelectedSym" style="color:var(--text)">RELIANCE</span></span>
           <span class="note" id="trialStatusBadge">Ready for trial</span>
         </h2>
+
+        <!-- Trading Option / Horizon Segment Selector -->
+        <div class="trading-option-section" style="margin-bottom: 14px; padding: 12px 16px; background: var(--panel2); border-radius: var(--radius); border: 1px solid var(--line);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+            <span style="font-weight: 700; font-size: 11.5px; color: var(--gold); letter-spacing: 0.08em; text-transform: uppercase;">
+              ⚖️ Trading Analysis Option (Trend &amp; Risk Mode):
+            </span>
+            <span class="note" id="ttDesc" style="color: var(--teal); font-weight: 600; font-size: 12px;">
+              ⚡ Fast Intraday Momentum: EMA9 &gt; EMA20, volume surge &amp; tight 0.8x ATR stop
+            </span>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="btn-trading-opt active" id="btn-opt-INTRADAY" onclick="setTradingType('INTRADAY')">
+              ⚡ INTRADAY
+            </button>
+            <button type="button" class="btn-trading-opt" id="btn-opt-OPTIONS" onclick="setTradingType('OPTIONS')">
+              🎯 OPTIONS
+            </button>
+            <button type="button" class="btn-trading-opt" id="btn-opt-FUTURES" onclick="setTradingType('FUTURES')">
+              📈 FUTURES
+            </button>
+            <button type="button" class="btn-trading-opt" id="btn-opt-LONG_TERM" onclick="setTradingType('LONG_TERM')">
+              🏛️ LONG TERM
+            </button>
+          </div>
+        </div>
+
         <div class="court-header">
           <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
             <label class="note" for="sym">Target:</label>
@@ -961,6 +1014,42 @@
       let currentDataMode = "DEMO";
       let marketSocket = null;
       let reconnectDelay = 1000;
+      let currentTradingType = "INTRADAY";
+
+      const TRADING_TYPE_CONFIG = {
+        INTRADAY: {
+          icon: "⚡",
+          label: "INTRADAY",
+          desc: "⚡ Fast Intraday Momentum: EMA9 > EMA20, volume surge & tight 0.8x ATR stop (same-day exit)",
+        },
+        OPTIONS: {
+          icon: "🎯",
+          label: "OPTIONS",
+          desc: "🎯 Volatility & Impulse: MACD acceleration, RSI momentum & asymmetric 3.0x ATR target to overcome theta decay",
+        },
+        FUTURES: {
+          icon: "📈",
+          label: "FUTURES",
+          desc: "📈 Leveraged Swing Trend: EMA20 > SMA50 continuation, margin volatility & trailing 2x ATR stop",
+        },
+        LONG_TERM: {
+          icon: "🏛️",
+          label: "LONG TERM",
+          desc: "🏛️ Macro Wealth Compounder: 50 vs 200 SMA Golden Cross, structural support (3.5x ATR) & 7x ATR target",
+        },
+      };
+
+      function setTradingType(type) {
+        currentTradingType = type;
+        document.querySelectorAll(".btn-trading-opt").forEach((btn) => {
+          btn.classList.toggle("active", btn.id === `btn-opt-${type}`);
+        });
+        const cfg = TRADING_TYPE_CONFIG[type];
+        if (cfg) {
+          const descEl = document.getElementById("ttDesc");
+          if (descEl) descEl.textContent = cfg.desc;
+        }
+      }
 
       // Select a stock interactively
       async function selectStock(symbol) {
@@ -1452,10 +1541,13 @@
         const o = $("#outcome");
         o.style.display = "block";
         const rk = t.risk;
+        const tt = r.trading_type || (t && t.trading_type) || currentTradingType;
+        const cfg = TRADING_TYPE_CONFIG[tt] || { icon: "⚖️", label: tt };
 
         o.innerHTML = `
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
             <div>
+              <span class="badge" style="color:var(--gold);border-color:var(--gold);margin-right:6px">${cfg.icon} ${esc(cfg.label)}</span>
               <b>Risk Engine:</b> ${rk.approved ? `Approved ${rk.quantity} shares` : `No entry permitted`} ${rk.reasons.length ? "— " + esc(rk.reasons.join("; ")) : ""}
             </div>
             <div>
@@ -1479,7 +1571,7 @@
           )
           .join("");
 
-        $("#trialStatusBadge").textContent = `Verdict: ${r.outcome}`;
+        $("#trialStatusBadge").innerHTML = `<span class="badge" style="color:var(--gold);border-color:var(--gold)">${cfg.icon} ${esc(cfg.label)}</span> <span class="tag ${esc(r.outcome)}">${esc(r.outcome)}</span>`;
       }
 
       // Evidence chip click to highlight
@@ -1505,7 +1597,7 @@
 
       async function runTrial(sym) {
         $("#trialNote").innerHTML = '<span class="thinking dots">Deliberating</span>';
-        const r = await post("/api/trial/start", { symbol: sym });
+        const r = await post("/api/trial/start", { symbol: sym, trading_type: currentTradingType });
         $("#trialNote").textContent = "";
         await showTrial(r);
         await refresh();

@@ -44,6 +44,8 @@ def indicator_frame(df: pd.DataFrame) -> pd.DataFrame:
     c = df["close"]
     out = df.copy()
     out["sma20"], out["sma50"], out["ema20"] = sma(c, 20), sma(c, 50), ema(c, 20)
+    out["ema9"] = ema(c, 9)
+    out["sma200"] = sma(c, 200).bfill().fillna(c)
     out["rsi14"] = rsi(c)
     out = out.join(macd(c))
     out["atr14"] = atr(df)
