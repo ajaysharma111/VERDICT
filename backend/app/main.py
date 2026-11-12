@@ -686,11 +686,11 @@ def orders(request: Request = None):
 
 
 @app.get("/api/journal")
-def journal(request: Request = None):
+def journal(filter_mode: str = "selected", request: Request = None):
     b = get_broker_for_request(request)
     user = get_current_user(request) if request else None
     selected_filter = None
-    if user:
+    if user and filter_mode == "selected":
         with auth_session_factory() as s_auth:
             user_stocks = get_selected_stocks(s_auth, user.id)
             if not user_stocks:
@@ -700,11 +700,13 @@ def journal(request: Request = None):
             selected_filter = set(user_stocks)
 
     with b.Session() as s:
-        stmt = select(JournalEntry).order_by(JournalEntry.id.desc()).limit(50)
+        stmt = select(JournalEntry).order_by(JournalEntry.id.desc()).limit(100)
         all_j = s.scalars(stmt).all()
         if selected_filter is not None:
             # Strictly show ONLY journal entries for stocks selected for trading.
             all_j = [j for j in all_j if j.symbol in selected_filter]
+        elif filter_mode == "executed":
+            all_j = [j for j in all_j if j.outcome == "EXECUTED"]
         active = [
             {
                 "id": j.id, "at": j.at, "symbol": j.symbol,

@@ -42,9 +42,9 @@ def test_position_sizing_and_judge_multiplier():
     assert position_size(D(100000), D("0.01"), D(100), D(100)) == 0
 
 
-def test_exposure_clamp_to_40_percent():
+def test_exposure_clamp_to_15_percent():
     d = R.check_entry(prop(), state(), OPEN_TIME)
-    assert d.approved and d.quantity == 400  # 40% of 1,00,000 / 100 = 400 (clamped from 500)
+    assert d.approved and d.quantity == 150  # 15% of 1,00,000 / 100 = 150 (clamped from 500)
 
 
 @pytest.mark.parametrize("kw,text", [

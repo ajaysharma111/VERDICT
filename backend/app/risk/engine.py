@@ -16,7 +16,7 @@ class RiskLimits:
     risk_per_trade: Decimal = Decimal("0.01")
     daily_loss_limit: Decimal = Decimal("0.03")
     max_open_positions: int = 10
-    max_stock_exposure: Decimal = Decimal("0.40")
+    max_stock_exposure: Decimal = Decimal("0.15")
     max_total_exposure: Decimal = Decimal("1.00")
     checkin_timeout: Optional[timedelta] = None
 

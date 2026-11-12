@@ -1110,8 +1110,17 @@
       <section class="card">
         <h2>
           <span>Courtroom Trading Journal &amp; Transcripts</span>
-          <span class="note">Filtered to your selected trading stocks · Click any trial to expand</span>
+          <span class="note">Click any trial to expand adversarial transcript</span>
         </h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;padding:8px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;font-size:12px">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span style="color:var(--mute);font-weight:700">JOURNAL FILTER:</span>
+            <button id="btnFilterSelected" class="btn-mini" style="background:rgba(245,158,11,0.2);color:var(--gold);border:1px solid var(--gold);padding:4px 10px;border-radius:6px;cursor:pointer" onclick="setJournalFilter('selected')">⭐ Selected Stocks</button>
+            <button id="btnFilterAll" class="btn-mini secondary" style="padding:4px 10px;border-radius:6px;cursor:pointer" onclick="setJournalFilter('all')">🌐 All Stocks &amp; Non-Traded</button>
+            <button id="btnFilterExecuted" class="btn-mini secondary" style="padding:4px 10px;border-radius:6px;cursor:pointer" onclick="setJournalFilter('executed')">💼 Traded Fills Only</button>
+          </div>
+          <span class="note" id="journalFilterNote">Filtered to selected trading stocks</span>
+        </div>
         <div id="journal"></div>
       </section>
 
@@ -1223,6 +1232,35 @@
       let marketSocket = null;
       let reconnectDelay = 1000;
       let currentTradingType = "INTRADAY";
+      let currentJournalFilter = "selected";
+
+      async function setJournalFilter(mode) {
+        currentJournalFilter = mode;
+        const bSel = $("#btnFilterSelected");
+        const bAll = $("#btnFilterAll");
+        const bExe = $("#btnFilterExecuted");
+        const note = $("#journalFilterNote");
+        if (bSel) bSel.className = mode === "selected" ? "btn-mini primary" : "btn-mini secondary";
+        if (bAll) bAll.className = mode === "all" ? "btn-mini primary" : "btn-mini secondary";
+        if (bExe) bExe.className = mode === "executed" ? "btn-mini primary" : "btn-mini secondary";
+        if (mode === "selected") {
+          if (bSel) { bSel.style.background = "rgba(245,158,11,0.2)"; bSel.style.color = "var(--gold)"; bSel.style.border = "1px solid var(--gold)"; }
+          if (bAll) { bAll.style.background = ""; bAll.style.color = ""; bAll.style.border = ""; }
+          if (bExe) { bExe.style.background = ""; bExe.style.color = ""; bExe.style.border = ""; }
+          if (note) note.textContent = "Filtered to selected trading stocks";
+        } else if (mode === "all") {
+          if (bAll) { bAll.style.background = "rgba(245,158,11,0.2)"; bAll.style.color = "var(--gold)"; bAll.style.border = "1px solid var(--gold)"; }
+          if (bSel) { bSel.style.background = ""; bSel.style.color = ""; bSel.style.border = ""; }
+          if (bExe) { bExe.style.background = ""; bExe.style.color = ""; bExe.style.border = ""; }
+          if (note) note.textContent = "Showing all stocks & non-traded verdicts";
+        } else {
+          if (bExe) { bExe.style.background = "rgba(245,158,11,0.2)"; bExe.style.color = "var(--gold)"; bExe.style.border = "1px solid var(--gold)"; }
+          if (bSel) { bSel.style.background = ""; bSel.style.color = ""; bSel.style.border = ""; }
+          if (bAll) { bAll.style.background = ""; bAll.style.color = ""; bAll.style.border = ""; }
+          if (note) note.textContent = "Showing executed trade orders only";
+        }
+        await refresh();
+      }
 
       const TRADING_TYPE_CONFIG = {
         INTRADAY: {
@@ -1506,7 +1544,7 @@
         const [h, pf, j, lg] = await Promise.all([
           api("/api/health"),
           api("/api/portfolio"),
-          api("/api/journal"),
+          api(`/api/journal?filter_mode=${encodeURIComponent(currentJournalFilter)}`),
           api("/api/risk/logs"),
         ]);
 
