@@ -42,9 +42,9 @@ def test_position_sizing_and_judge_multiplier():
     assert position_size(D(100000), D("0.01"), D(100), D(100)) == 0
 
 
-def test_exposure_clamp_to_20_percent():
+def test_exposure_clamp_to_40_percent():
     d = R.check_entry(prop(), state(), OPEN_TIME)
-    assert d.approved and d.quantity == 200  # 20% of 1,00,000 / 100, not 500
+    assert d.approved and d.quantity == 400  # 40% of 1,00,000 / 100 = 400 (clamped from 500)
 
 
 @pytest.mark.parametrize("kw,text", [
@@ -65,7 +65,7 @@ def test_daily_loss_limit_locks_entries():
 
 
 def test_max_positions_and_insufficient_cash():
-    full = state(positions={f"S{i}": D(1000) for i in range(5)})
+    full = state(positions={f"S{i}": D(1000) for i in range(10)})
     assert not R.check_entry(prop(), full, OPEN_TIME).approved
     assert not R.check_entry(prop(), state(cash=D(50)), OPEN_TIME).approved
 

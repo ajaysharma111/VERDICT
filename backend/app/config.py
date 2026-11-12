@@ -35,8 +35,8 @@ class Settings:
     initial_capital: Decimal = Decimal("100000")
     risk_per_trade: Decimal = Decimal("0.01")
     daily_loss_limit: Decimal = Decimal("0.03")
-    max_open_positions: int = 5
-    max_stock_exposure: Decimal = Decimal("0.20")
+    max_open_positions: int = 10
+    max_stock_exposure: Decimal = Decimal("0.40")
     slippage_bps: Decimal = Decimal("5")
     market_data_mode: str = "demo"  # demo | live  (never switches silently)
     timezone: str = "Asia/Kolkata"
@@ -52,8 +52,8 @@ def load_settings() -> Settings:
         initial_capital=d("INITIAL_CAPITAL", "100000"),
         risk_per_trade=d("RISK_PER_TRADE", "0.01"),
         daily_loss_limit=d("DAILY_LOSS_LIMIT", "0.03"),
-        max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "5")),
-        max_stock_exposure=d("MAX_STOCK_EXPOSURE", "0.20"),
+        max_open_positions=int(os.getenv("MAX_OPEN_POSITIONS", "10")),
+        max_stock_exposure=d("MAX_STOCK_EXPOSURE", "0.40"),
         slippage_bps=d("SLIPPAGE_BPS", "5"),
         market_data_mode=os.getenv("MARKET_DATA_MODE", "demo").lower(),
     )
